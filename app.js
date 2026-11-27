@@ -778,6 +778,7 @@
       h += '<button class="btn ghost small" data-go="lessons-' + m + '">All lessons</button>';
     }
     var gi = st.sel, going = R.nav && R.nav.m === m && R.nav.i === gi;
+    if (p.k === 'gate' || p.k === 'cg') h += '<button class="btn ghost small wide" data-act="at-gate" data-i="' + gi + '">I’m at this gate</button>';
     if (p.k === 'lesson' && R.sheetOff !== m + gi) h += spotSheet(m, p, gi);
     h += '<button class="btn small wide' + (going ? ' ghost' : '') + '" data-act="' + (going ? 'nav-stop' : 'nav') + '" data-i="' + gi + '">' + (going ? 'Stop guiding me' : 'Guide me here') + '</button>';
     return h + '</div>';
@@ -901,7 +902,7 @@
     h += '<div class="chips">' + LAYERS.map(function (l) { return '<button class="chip" data-act="layer" data-k="' + l[0] + '" aria-pressed="' + !!R.layers[l[0]] + '">' + swatch(l[0]) + l[1] + '</button>'; }).join('') + '</div>';
     h += '<div id="gpsbox">' + gpsHTML(m) + '</div>';
     h += '<div class="card"><h3>The official live map</h3><p>The General Authority for the Two Holy Mosques has its own interactive map, with routes and services in seven languages.</p><a class="btn ghost small" href="https://alharamain.gov.sa/public/?page=interactive_maps_ar" target="_blank" rel="noopener">Open the official live map</a><p class="hint">It opens in your browser and needs internet. It may only load inside Saudi Arabia.</p></div>';
-    h += '<div class="addrow"><input type="text" inputmode="numeric" id="gate-in" maxlength="12" placeholder="79" aria-label="Gate number"><button class="btn small" data-act="find-gate">Find gate</button></div>';
+    h += '<div class="card"><h3>Which gate?</h3><p>Every gate has its number on a sign above the doors. Type it to find the gate, or to put your dot there when GPS is weak indoors.</p><div class="addrow"><input type="text" inputmode="numeric" id="gate-in" maxlength="12" placeholder="79" aria-label="Gate number"><button class="btn small" data-act="find-gate">Find gate</button></div><button class="btn ghost small wide" data-act="at-gate">I’m at this gate</button></div>';
     return h + '<p class="hint">' + esc(MAPS.credit || '') + ' Some gates are missing from the map.' + (d3 ? ' The 3D model is a likeness built from the same data, not a survey.' : '') + '</p></section>';
   }
   function mapOpts(m) {
@@ -964,13 +965,29 @@
     draw();
   }
   function focusPin(m, i) { var p = pinsOf(m)[i]; mapState(m); R.map.sel = i; R.map.cx = p.x; R.map.cy = p.y; R.map.k = Math.max(R.map.k, 5); R.map.focus = { x: p.x, y: p.y }; }
-  function findGate() {
-    var el = document.getElementById('gate-in'), q = el ? el.value.trim().toLowerCase() : '', m = R.map.m, P = pinsOf(m), hit = -1;
-    if (!q) { toast('Type a gate number first'); return; }
+  function gateIndex() {
+    var el = document.getElementById('gate-in'), q = el ? el.value.trim().toLowerCase() : '', P = pinsOf(R.map.m), hit = -1;
+    if (!q) { toast('Type a gate number first'); return -1; }
     P.forEach(function (p, i) { if (hit < 0 && (p.k === 'gate' || p.k === 'cg') && String(p.r || '').split(/,\s*/).indexOf(q) >= 0) hit = i; });
     P.forEach(function (p, i) { if (hit < 0 && p.k === 'gate' && p.n.toLowerCase().indexOf(q) >= 0) hit = i; });
-    if (hit < 0) { toast('That gate is not on this map'); return; }
+    if (hit < 0) toast('That gate is not on this map');
+    return hit;
+  }
+  function findGate() {
+    var hit = gateIndex(), m = R.map.m; if (hit < 0) return;
     R.layers.gate = true; focusPin(m, hit); render();
+    var box = document.querySelector('.mapbox'); if (box && box.scrollIntoView) box.scrollIntoView({ block: 'nearest' });
+  }
+  /* "I'm at gate N": the pilgrim reads the number off the sign above the door, and the dot goes there.
+     Under the roof this is more exact than GPS, and it works with no signal at all. */
+  function atGate(i) {
+    var st = R.map, m = st.m, p = pinsOf(m)[i]; if (!p) return;
+    try { if (GPS.id != null) navigator.geolocation.clearWatch(GPS.id); } catch (e) {}
+    GPS.id = null; GPS.on = true; GPS.manual = true;
+    st.me = { x: p.x, y: p.y };
+    GPS.msg = 'You placed yourself at ' + (p.n.indexOf('Gate ') === 0 ? p.n : 'Gate ' + String(p.r).split(',')[0] + ', ' + p.n) + '. The dot stays there until you move it or turn on GPS.';
+    R.layers.gate = true; st.sel = i; st.cx = p.x; st.cy = p.y; st.k = Math.max(st.k, 4); st.focus = { x: p.x, y: p.y };
+    toast('Your dot is at this gate'); render();
     var box = document.querySelector('.mapbox'); if (box && box.scrollIntoView) box.scrollIntoView({ block: 'nearest' });
   }
   function showPlace(m, pid) {
@@ -1029,7 +1046,7 @@
     if (ENV.preview) h += '<p>The app shows a blue dot where you stand. This private link is not allowed to read a phone’s position, so try a sample instead.</p><button class="btn ghost small" data-act="gps-demo">' + (GPS.on ? 'Try another sample' : 'Show a sample position') + '</button>';
     else if (!navigator.geolocation) h += '<p>This phone does not share its position with web pages.</p>';
     else if (!GPS.on) h += '<p>See a blue dot where you are standing. Your position stays on your phone.</p><button class="btn small" data-act="gps">Show where I am</button>';
-    else h += '<button class="btn ghost small" data-act="gps-stop">Stop showing my position</button>';
+    else h += (GPS.manual && navigator.geolocation ? '<button class="btn small" data-act="gps">Use GPS instead</button>' : '') + '<button class="btn ghost small" data-act="gps-stop">' + (GPS.manual ? 'Remove my dot' : 'Stop showing my position') + '</button>';
     return h + '</div>';
   }
   function gpsPaint(recentre) {
@@ -1058,7 +1075,7 @@
   }
   function gpsStart() {
     var q = /[?&]lat=([-\d.]+)&lon=([-\d.]+)/.exec(location.search);
-    GPS.on = true; GPS.msg = 'Finding you…';
+    GPS.on = true; GPS.manual = false; GPS.msg = 'Finding you…';
     if (q) { gpsFix(+q[1], +q[2], 10); return; }
     gpsPaint(false);
     try {
@@ -1070,7 +1087,7 @@
   }
   function gpsStop(quiet) {
     try { if (GPS.id != null) navigator.geolocation.clearWatch(GPS.id); } catch (e) {}
-    GPS.id = null; GPS.on = false; GPS.msg = '';
+    GPS.id = null; GPS.on = false; GPS.manual = false; GPS.msg = '';
     if (R.map) R.map.me = null;
     if (!quiet) gpsPaint(false);
   }
@@ -1369,6 +1386,7 @@
     else if (a === 'mapmode') { S.mapMode = t.getAttribute('data-v'); save(); render(); }
     else if (a === 'tilt') { R.topView = !R.topView; if (window.UMRAH_3D && R.redraw) window.UMRAH_3D.tilt(R.topView); render(); }
     else if (a === 'find-gate') { findGate(); }
+    else if (a === 'at-gate') { var gi2 = t.getAttribute('data-i'); gi2 = gi2 != null ? +gi2 : gateIndex(); if (gi2 >= 0) atGate(gi2); }
     else if (a === 'gps') { gpsStart(); }
     else if (a === 'gps-stop') { gpsStop(); }
     else if (a === 'gps-demo') { gpsDemo(); }
