@@ -26,7 +26,7 @@
   var CHECK = '<svg class="ck" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   var PLAY = '<svg class="pl" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
   var TABS = [['home', 'Home'], ['prepare', 'Prepare'], ['learn', 'Learn'], ['perform', 'Perform'], ['maps', 'Maps'], ['help', 'Help']];
-  var ROUTE = /^(home|prepare|prep-duas|prep-card|learn|perform|help|card|setup|maps|map-makkah|map-madinah|lessons-makkah|lessons-madinah|plan|prep-docs|doc-\d+|count-tawaf|count-sai|duas|teacher-makkah-\d+|teacher-madinah-\d+|lesson-[a-z]+|read-\d+|stage-\d+|help-[a-z]+)$/;
+  var ROUTE = /^(home|prepare|prep-duas|prep-card|learn|perform|help|card|setup|maps|map-makkah|map-madinah|lessons-makkah|lessons-madinah|floors-makkah|plan|prep-docs|doc-\d+|count-tawaf|count-sai|duas|teacher-makkah-\d+|teacher-madinah-\d+|lesson-[a-z]+|read-\d+|stage-\d+|help-[a-z]+)$/;
 
   /* ---------- small helpers ---------- */
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
@@ -634,7 +634,7 @@
   function remember(m) { if (S.masjid !== m) { S.masjid = m; save(); } }
   function masjidHead(m, mode) {
     return '<div class="seg2">' + ['makkah', 'madinah'].map(function (x) { return '<button aria-pressed="' + (x === m) + '" data-go="' + mode + '-' + x + '">' + CITY[x] + '</button>'; }).join('') + '</div>' +
-      '<div class="seg2">' + [['map', 'Map'], ['lessons', 'Lessons']].map(function (x) { return '<button aria-pressed="' + (x[0] === mode) + '" data-go="' + x[0] + '-' + m + '">' + x[1] + '</button>'; }).join('') + '</div>';
+      '<div class="' + (m === 'makkah' ? 'seg3' : 'seg2') + ' pick">' + (m === 'makkah' ? [['map', 'Map'], ['floors', 'Floors'], ['lessons', 'Lessons']] : [['map', 'Map'], ['lessons', 'Lessons']]).map(function (x) { return '<button aria-pressed="' + (x[0] === mode) + '" data-go="' + x[0] + '-' + m + '">' + x[1] + '</button>'; }).join('') + '</div>';
   }
   function swatch(k) {
     return '<svg class="sw" viewBox="0 0 16 16" aria-hidden="true">' + (k === 'gate' ? '<circle class="p-gate" cx="8" cy="8" r="7"/>' :
@@ -661,6 +661,51 @@
       if (have[k]) out.push({ key: k, label: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : wd.format(d), sub: i < 2 ? wd.format(d) : hj.format(d), i: i, n: have[k], date: d });
     }
     return out;
+  }
+  /* ---------- Masjid al-Haram, floor by floor: the floors drawn pulled apart, then a plan of the one you choose ---------- */
+  var FL = window.UMRAH_FLOORS || { floors: [], links: [] };
+  var LINK = { esc: ['E', 'Escalator'], stairs: ['S', 'Stairs'], lift: ['L', 'Lift'] };
+  function outline(m, fill, line, wd) {
+    return MAPS[m].shapes.filter(function (x) { return x[0] === 'bld'; }).map(function (x) {
+      /* only the pieces of the Masjid itself: one outlying piece far to the north-west is left off */
+      var d = x[1].split('M').filter(function (p) { return p && Math.min.apply(null, p.replace(/Z/g, '').split('L').map(function (q) { return parseFloat(q); })) >= 250; }).map(function (p) { return 'M' + p; }).join('');
+      return '<path fill-rule="evenodd" d="' + d + '" fill="' + fill + '" stroke="' + line + '" stroke-width="' + wd + '"/>'; }).join('');
+  }
+  function stackSVG(sel) {
+    var c = isDark() ? PAL.night : PAL.day, h = '', gap = 190, n = FL.floors.length;
+    FL.floors.forEach(function (f, i) {
+      var y = (n - 1 - i) * gap, on = f.id === sel;
+      /* each floor: the building's real outline, laid back at an angle, with a side edge so it reads as a slab */
+      var T = 'translate(265 ' + (150 + y) + ') scale(0.72 0.32) rotate(-28) translate(-560 -630)';
+      h += '<g class="slab" data-act="floor" data-v="' + f.id + '" opacity="' + (on ? 1 : 0.5) + '"><g transform="translate(0 12)"><g transform="' + T + '">' + outline('makkah', on ? '#8A6D24' : c.mSvc, on ? '#8A6D24' : c.mSvc, 3) + '</g></g>' +
+        '<g transform="' + T + '">' + outline('makkah', on ? c.zOld : c.mBld, on ? c.gold : c.zLine, 3) + (f.id >= 0 ? '<rect x="654" y="720" width="15" height="15" fill="' + c.kaaba + '" opacity="' + (f.id === 0 ? 1 : 0.25) + '"/>' : '') + '</g>' +
+        '<text x="690" y="' + (112 + y) + '" text-anchor="end" dominant-baseline="central" font-family="Marcellus, Georgia, serif" font-size="30" fill="' + (isDark() ? '#F4EFE2' : '#16261F') + '"' + (on ? ' font-weight="700"' : '') + '>' + esc(f.name) + '</text></g>';
+    });
+    return '<svg class="stack" viewBox="0 0 700 ' + (150 + n * gap - 40) + '" role="img" aria-label="The floors of Masjid al-Haram, one above another">' + h + '</svg>';
+  }
+  function floorSVG(f) {
+    var dark = isDark(), c = dark ? PAL.night : PAL.day, box = [275, 315, 580, 630], u = 5.4;
+    var h = '<rect x="275" y="315" width="580" height="630" fill="' + c.land + '"/>' + (f.id === 0 ? baseSVG('makkah', dark) : outline('makkah', c.mBld, c.mLine, 2) + '<path d="' + MAPS.makkah.shapes.filter(function (x) { return x[0] === 'kaaba'; })[0][1] + '" fill="' + c.kaaba + '" opacity="0.35"/>');
+    FL.links.forEach(function (q) {
+      if (q.f.indexOf(f.id) < 0) return;
+      var col = q.k === 'esc' ? '#1B5A43' : q.k === 'lift' ? '#7A3E8E' : '#2B6C94';
+      h += '<rect x="' + (q.x - 9) + '" y="' + (q.y - 9) + '" width="18" height="18" rx="5" fill="' + col + '" stroke="#fff" stroke-width="1.8"/><text x="' + q.x + '" y="' + q.y + '" font-family="Inter, Arial" font-weight="700" font-size="12.5" fill="#fff" text-anchor="middle" dominant-baseline="central">' + LINK[q.k][0] + '</text>';
+    });
+    f.places.forEach(function (q, i) { h += medal(q.x, q.y, i + 1, u, c); });
+    h += tag(661, 757, 'Ka‘bah', u * 0.9, c, 'middle', true);
+    return '<svg class="rmap" viewBox="' + box.join(' ') + '" role="img" aria-label="Plan of the ' + esc(f.name) + '">' + h + '</svg>';
+  }
+  function vFloors() {
+    var sel = R.floor == null ? 0 : R.floor, f = null; FL.floors.forEach(function (x) { if (x.id === sel) f = x; });
+    if (!f) return vMap('makkah');
+    var count = { esc: 0, stairs: 0, lift: 0 }; FL.links.forEach(function (q) { if (q.f.indexOf(f.id) >= 0) count[q.k]++; });
+    var h = top('Floors', '', 'Masjid al-Haram') + '<section class="pad">' + masjidHead('makkah', 'floors') +
+      '<figure class="fig">' + stackSVG(sel) + '<figcaption>Tap a floor. The highest is at the top.</figcaption></figure>' +
+      '<div class="floorbar">' + FL.floors.map(function (x) { return '<button class="opt" data-act="floor" data-v="' + x.id + '" aria-pressed="' + (x.id === sel) + '">' + esc(x.name) + '</button>'; }).join('') + '</div>' +
+      '<figure class="fig"><p class="hk">' + esc(f.name) + '</p>' + floorSVG(f) +
+      '<div class="zonekey"><span><i style="background:#1B5A43"></i>E: escalator (' + count.esc + ')</span><span><i style="background:#2B6C94"></i>S: stairs (' + count.stairs + ')</span><span><i style="background:#7A3E8E"></i>L: lift (' + count.lift + ')</span></div><figcaption>' + esc(f.about) + '</figcaption>' +
+      (f.places.length ? stops(f.places.map(function (q, i) { return [i + 1, q.n, '', '']; })) : '') + '</figure>';
+    return h + '<p class="hint">There is no published floor plan. The numbered places are the ones the Ministry of Hajj’s Grand Mosque guide puts on this floor, marked at the gate it names. Stairs, escalators and lifts come from OpenStreetMap volunteers and the list is not complete. Every floor is drawn with the same outline, although the real floors differ in shape.</p></section>';
   }
   function lessonCount() {
     var n = 0;
@@ -767,7 +812,7 @@
   }
   function pinInfo(m) {
     var st = R.map, p = st && st.sel >= 0 ? pinsOf(m)[st.sel] : null;
-    if (!p) return '<p class="hint">Tap a marker to see what it is. Drag to move the map and pinch to zoom.' + (document.getElementById('map3d') || is3d() ? ' Turn and tilt the view with two fingers.' : '') + '</p>';
+    if (!p) return '<p class="hint">Tap a marker to see what it is. Drag to move the map and pinch to zoom.' + (document.getElementById('map3d') || is3d() ? ' Twist two fingers to turn the map all the way round. Slide two fingers up or down to tilt it.' : '') + '</p>';
     var h = '<div class="card"><div class="sh"><span class="lab plain">' + KIND[p.k] + (p.r && p.k !== 'wudu' ? ' ' + esc(p.r) : '') + '</span></div><h3>' + esc(p.n) + '</h3>' + (p.a ? '<p class="ar2" lang="ar" dir="rtl">' + esc(p.a) + '</p>' : '');
     if (p.note) h += '<p>' + esc(p.note) + '</p>';
     if (p.k === 'lesson') {
@@ -849,6 +894,7 @@
     var W = Math.min(maxW || 4096, Math.floor(Math.sqrt(11e6 * w / h))), H = Math.round(W * h / w), k = W / w;
     var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     var g = cv.getContext('2d');
+    if (window.HG_LOOK) { var base0 = c; c = {}; Object.keys(base0).forEach(function (kk) { c[kk] = (window.HG_LOOK.pal || {})[kk] || base0[kk]; }); }
     g.fillStyle = c.land; g.fillRect(0, 0, W, H); g.setTransform(k, 0, 0, k, -x0 * k, -y0 * k); g.lineJoin = 'round';
     function fill(d, col, eo) { g.fillStyle = col; g.fill(new Path2D(d), eo ? 'evenodd' : 'nonzero'); }
     function line(d, col, wd, dash, cap) { g.strokeStyle = col; g.lineWidth = wd; g.setLineDash(dash || []); g.lineCap = cap || 'butt'; g.stroke(new Path2D(d)); }
@@ -894,7 +940,7 @@
     var h = '<section class="pad mappad"><h1 class="vh">' + esc(M.title) + '</h1>' + masjidHead(m, 'map');
     h += '<div class="mapbox tall' + (R.mapFull ? ' full' : '') + '">' + (d3 ? '<div id="map3d" class="map3dbox"><p class="maploading">Building the 3D view</p></div>' : flatSVG(m)) +
       (HAS3D && !R.no3d ? '<div class="mapmode"><button aria-pressed="' + d3 + '" data-act="mapmode" data-v="3d">3D</button><button aria-pressed="' + !d3 + '" data-act="mapmode" data-v="flat">Flat</button></div>' : '') +
-      '<div class="zoom"><button data-act="zoom" data-v="1.7" aria-label="Zoom in">+</button><button data-act="zoom" data-v="0.59" aria-label="Zoom out">−</button></div><button class="fullbtn" data-act="map-full">' + (R.mapFull ? 'Close full screen' : 'Full screen') + '</button></div>';
+      '<div class="zoom"><button data-act="zoom" data-v="1.7" aria-label="Zoom in">+</button><button data-act="zoom" data-v="0.59" aria-label="Zoom out">−</button></div>' + (d3 ? '<div class="turn"><button data-act="turn" data-v="45" aria-label="Turn left">↺</button><button class="compass" data-act="north" aria-label="Face north"><span id="needle"><b>▲</b>N</span></button><button data-act="turn" data-v="-45" aria-label="Turn right">↻</button></div>' : '') + '<button class="fullbtn" data-act="map-full">' + (R.mapFull ? 'Close full screen' : 'Full screen') + '</button></div>';
     if (INSIDE[m] && INSIDE[m].key) { var zc = isDark() ? PAL.night : PAL.day; h += '<div class="zonekey">' + INSIDE[m].key.map(function (z) { return '<span><i style="background:' + zc[z[0]] + '"></i>' + esc(z[1]) + '</span>'; }).join('') + '</div><p class="hint">' + esc(INSIDE[m].note || '') + '</p>'; }
     h += '<div id="pininfo">' + pinInfo(m) + '</div>';
     h += '<div class="two"><button class="btn ghost small" data-act="zoom" data-v="0">Reset the view</button>' + (d3 ? '<button class="btn ghost small" data-act="tilt">' + (R.topView ? 'Angled view' : 'Top view') + '</button><button class="btn ghost small" data-act="inside">See inside</button>' : '') + '</div>';
@@ -907,7 +953,7 @@
   }
   function mapOpts(m) {
     var st = R.map;
-    return { pins: pinsOf(m), labels: labelsOf(m), layers: R.layers, sel: st.sel, me: st.me, nav: R.nav && R.nav.m === m ? pinsOf(m)[R.nav.i] : null, dark: isDark(), ground: function (dark, maxW) { return groundCanvas(m, dark, maxW); }, focus: st.focus, onSelect: function (i) { st.sel = i; if (R.redraw) R.redraw(); } };
+    return { pins: pinsOf(m), labels: labelsOf(m), layers: R.layers, sel: st.sel, me: st.me, nav: R.nav && R.nav.m === m ? pinsOf(m)[R.nav.i] : null, dark: isDark(), ground: function (dark, maxW) { return groundCanvas(m, dark, maxW); }, onTurn: function (deg) { var n = document.getElementById('needle'); if (n) n.style.transform = 'rotate(' + deg.toFixed(0) + 'deg)'; }, focus: st.focus, onSelect: function (i) { st.sel = i; if (R.redraw) R.redraw(); } };
   }
   function mapSetup() {
     if (!R.map) return;
@@ -1299,6 +1345,7 @@
     else if (r === 'maps' || r.indexOf('map-') === 0) { h = vMap(r === 'maps' ? (S.masjid || 'makkah') : r.slice(4)); tab = 'maps'; }
     else if (r.indexOf('lessons-') === 0) { h = vLessons(r.slice(8)); tab = 'maps'; }
     else if (r === 'duas') { h = vDuas(); tab = 'home'; }
+    else if (r === 'floors-makkah') { h = vFloors(); tab = 'maps'; }
     else if (r === 'plan') { h = vPlan(); tab = 'maps'; }
     else if (r.indexOf('teacher-') === 0) { h = vTeacher(r.split('-')[1], r.split('-')[2]); tab = 'maps'; }
     else if (r === 'help') { h = vHelp(); tab = 'help'; }
@@ -1383,6 +1430,9 @@
         if (R.redraw) R.redraw();
       }
     }
+    else if (a === 'floor') { R.floor = +t.getAttribute('data-v'); render(); }
+    else if (a === 'turn') { if (window.UMRAH_3D) window.UMRAH_3D.turn(+t.getAttribute('data-v')); }
+    else if (a === 'north') { if (window.UMRAH_3D) window.UMRAH_3D.north(); }
     else if (a === 'mapmode') { S.mapMode = t.getAttribute('data-v'); save(); render(); }
     else if (a === 'tilt') { R.topView = !R.topView; if (window.UMRAH_3D && R.redraw) window.UMRAH_3D.tilt(R.topView); render(); }
     else if (a === 'find-gate') { findGate(); }

@@ -451,3 +451,17 @@ html.mapfull #tabs { display: none; }
 /* two quick taps on a button must not zoom the whole page (pinching still works) */
 html, body, button, a, .mapbox { touch-action: manipulation; }
 .map, canvas.map3d { touch-action: none; }
+
+/* ---- turning the 3D map ---- */
+.turn { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 6px; }
+.turn button { width: 44px; height: 44px; border: 0; border-radius: 14px; background: var(--card); color: var(--ink); font: inherit; font-size: 1.35rem; font-weight: 700; box-shadow: 0 2px 8px var(--shade); }
+.turn .compass span { display: flex; flex-direction: column; align-items: center; font-size: .72rem; line-height: .95; }
+.turn .compass b { color: #c4432f; font-size: .85rem; }
+.mapbox.full .turn { bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
+.map3dbox canvas, .pins3 button { touch-action: none; -webkit-touch-callout: none; }
+
+/* ---- floor by floor ---- */
+.stack { display: block; width: 100%; height: auto; }
+.stack .slab { cursor: pointer; }
+.floorbar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.seg3.pick button[aria-pressed="true"] { background: var(--card); color: var(--accent); box-shadow: 0 1px 4px var(--shade-2); }

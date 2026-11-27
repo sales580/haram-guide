@@ -20,7 +20,7 @@
   }
   function buildScene(m) {
     var T = window.THREE, D = window.UMRAH_SCENE[m], scene = new T.Scene(), cx = D.w / 2, cz = D.h / 2;
-    var MB = { pos: [], nor: [], col: [] }, KB = { pos: [], nor: [], col: [] }, pal = D.palette.map(function (c) { return new T.Color(c); });
+    var MB = { pos: [], nor: [], col: [] }, KB = { pos: [], nor: [], col: [] }, pal = D.palette.map(function (c) { return new T.Color(window.HG_LOOK && window.HG_LOOK.recolor ? window.HG_LOOK.recolor(c) : c); });
     function push(geom, wall, roof, base, keep) {
       var B = keep ? KB : MB, pos = B.pos, nor = B.nor, col = B.col;
       var g = geom.index ? geom.toNonIndexed() : geom;
@@ -36,7 +36,8 @@
       geom.dispose();
     }
     var ground = new T.PlaneGeometry(9000, 9000); ground.rotateX(-Math.PI / 2);
-    push(ground, new T.Color('#d8d0be'), new T.Color('#d8d0be'), null, true);
+    var gc = (window.HG_LOOK && window.HG_LOOK.earth) || '#d8d0be';
+    push(ground, new T.Color(gc), new T.Color(gc), null, true);
     var base = !!window.UMRAH_BASE;
     (base ? [] : D.flats).forEach(function (f) {
       var g = new T.ShapeGeometry(shapeOf(T, f.p, cx, cz)); g.rotateX(-Math.PI / 2); g.translate(0, f.y, 0);
@@ -197,7 +198,9 @@
   function draw() {
     if (!V.host || !V.scenes[V.cur]) return;
     keepClose();
-    var sc = V.scenes[V.cur], inside = V.camera.position.distanceTo(V.controls.target) < 330;
+    if (V.opts && V.opts.onTurn) V.opts.onTurn(Math.atan2(V.camera.position.x - V.controls.target.x, V.camera.position.z - V.controls.target.z) * 180 / Math.PI);
+    if (V.opts && V.opts.onTurn) V.opts.onTurn(Math.atan2(V.camera.position.x - V.controls.target.x, V.camera.position.z - V.controls.target.z) * 180 / Math.PI);
+    var sc = V.scenes[V.cur], inside = !!(window.HG_LOOK && window.HG_LOOK.open) || V.camera.position.distanceTo(V.controls.target) < 330;
     if (sc.userData.inside !== inside) {
       sc.userData.inside = inside;
       if (!V.plane) V.plane = new window.THREE.Plane(new window.THREE.Vector3(0, -1, 0), 3.4);
@@ -213,6 +216,122 @@
     V.renderer.setSize(w, h, false);
     V.camera.aspect = w / h; V.camera.updateProjectionMatrix();
   }
+  /* ---------- fingers on the map ----------
+     One finger moves the map. Two fingers pinch to zoom and twist to turn it, all the way round.
+     Two fingers slid up or down together tilt the view. The same works when a finger starts on a marker:
+     the markers are redrawn while the map moves, so the listeners go on the element that was touched. */
+  function orbit(dTheta, dPhi, scale) {
+    var T = window.THREE, c = V.controls, off = V.camera.position.clone().sub(c.target), s = new T.Spherical().setFromVector3(off);
+    s.theta += dTheta || 0;
+    s.phi = Math.max(0.02, Math.min(c.maxPolarAngle, s.phi + (dPhi || 0)));
+    s.radius = Math.max(c.minDistance, Math.min(c.maxDistance, s.radius / (scale || 1)));
+    V.camera.position.copy(c.target).add(off.setFromSpherical(s));
+    V.camera.lookAt(c.target);
+  }
+  function slide(dx, dy) {
+    var T = window.THREE, t = V.controls.target, off = V.camera.position.clone().sub(t), s = new T.Spherical().setFromVector3(off);
+    var mpp = 2 * s.radius * Math.tan(V.camera.fov * Math.PI / 360) / (V.canvas.clientHeight || 600);
+    var fx = -Math.sin(s.theta), fz = -Math.cos(s.theta), rx = Math.cos(s.theta), rz = -Math.sin(s.theta), deep = dy * mpp / Math.max(0.4, Math.cos(s.phi));
+    var mx = -rx * dx * mpp + fx * deep, mz = -rz * dx * mpp + fz * deep;
+    t.x += mx; t.z += mz; V.camera.position.x += mx; V.camera.position.z += mz;
+  }
+  var G = { pts: null, mode: '', turn: 0, zoom: 0, lift: 0, moved: 0, frame: 0, target: null, noClick: 0 };
+  function read(ev) { var out = []; for (var i = 0; i < ev.touches.length && i < 2; i++) out.push([ev.touches[i].clientX, ev.touches[i].clientY]); return out; }
+  function redraw() { if (G.frame) return; G.frame = requestAnimationFrame(function () { G.frame = 0; V.controls.update(); draw(); }); }
+  function onMove(ev) {
+    ev.preventDefault();
+    var now = read(ev), was = G.pts;
+    if (!was || now.length !== was.length) { G.pts = now; G.mode = ''; G.turn = G.zoom = G.lift = 0; return; }
+    if (now.length === 1) {
+      var dx = now[0][0] - was[0][0], dy = now[0][1] - was[0][1];
+      G.moved += Math.abs(dx) + Math.abs(dy);
+      if (G.moved > 6) slide(dx, dy); else return;
+    } else {
+      var a0 = Math.atan2(was[1][1] - was[0][1], was[1][0] - was[0][0]), a1 = Math.atan2(now[1][1] - now[0][1], now[1][0] - now[0][0]);
+      var turn = Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0));
+      var d0 = Math.hypot(was[1][0] - was[0][0], was[1][1] - was[0][1]) || 1, d1 = Math.hypot(now[1][0] - now[0][0], now[1][1] - now[0][1]) || 1;
+      var cx = (now[0][0] + now[1][0] - was[0][0] - was[1][0]) / 2, cy = (now[0][1] + now[1][1] - was[0][1] - was[1][1]) / 2;
+      var m0 = now[0][1] - was[0][1], m1 = now[1][1] - was[1][1];
+      G.moved += 20; G.turn += turn; G.zoom += Math.log(d1 / d0); G.lift += m0 * m1 > 0 ? cy : 0;
+      if (!G.mode) {
+        if (Math.abs(G.turn) > 0.07 || Math.abs(G.zoom) > 0.07) G.mode = 'spin';
+        else if (Math.abs(G.lift) > 16) G.mode = 'tilt';
+      }
+      if (G.mode === 'tilt') orbit(0, -cy * 0.006, 1);
+      else if (G.mode === 'spin') { orbit(turn, 0, d1 / d0); slide(cx, cy); }
+    }
+    G.pts = now; redraw();
+  }
+  function onEnd(ev) {
+    if (ev.touches.length) { G.pts = read(ev); G.mode = ''; G.turn = G.zoom = G.lift = 0; return; }
+    var t = G.target; G.target = null; G.pts = null;
+    if (t) { t.removeEventListener('touchmove', onMove); t.removeEventListener('touchend', onEnd); t.removeEventListener('touchcancel', onEnd); }
+    if (G.moved > 8) G.noClick = Date.now();
+  }
+  function onStart(ev) {
+    ev.stopImmediatePropagation();
+    if (ev.touches.length === 1) { G.moved = 0; }
+    G.pts = read(ev); G.mode = ''; G.turn = G.zoom = G.lift = 0;
+    if (!G.target) { G.target = ev.target; G.target.addEventListener('touchmove', onMove, { passive: false }); G.target.addEventListener('touchend', onEnd); G.target.addEventListener('touchcancel', onEnd); }
+  }
+  /* ---------- fingers on the map ----------
+     One finger moves the map. Two fingers pinch to zoom and twist to turn it, all the way round.
+     Two fingers slid up or down together tilt the view. The same works when a finger starts on a marker:
+     the markers are redrawn while the map moves, so the listeners go on the element that was touched. */
+  function orbit(dTheta, dPhi, scale) {
+    var T = window.THREE, c = V.controls, off = V.camera.position.clone().sub(c.target), s = new T.Spherical().setFromVector3(off);
+    s.theta += dTheta || 0;
+    s.phi = Math.max(0.02, Math.min(c.maxPolarAngle, s.phi + (dPhi || 0)));
+    s.radius = Math.max(c.minDistance, Math.min(c.maxDistance, s.radius / (scale || 1)));
+    V.camera.position.copy(c.target).add(off.setFromSpherical(s));
+    V.camera.lookAt(c.target);
+  }
+  function slide(dx, dy) {
+    var T = window.THREE, t = V.controls.target, off = V.camera.position.clone().sub(t), s = new T.Spherical().setFromVector3(off);
+    var mpp = 2 * s.radius * Math.tan(V.camera.fov * Math.PI / 360) / (V.canvas.clientHeight || 600);
+    var fx = -Math.sin(s.theta), fz = -Math.cos(s.theta), rx = Math.cos(s.theta), rz = -Math.sin(s.theta), deep = dy * mpp / Math.max(0.4, Math.cos(s.phi));
+    var mx = -rx * dx * mpp + fx * deep, mz = -rz * dx * mpp + fz * deep;
+    t.x += mx; t.z += mz; V.camera.position.x += mx; V.camera.position.z += mz;
+  }
+  var G = { pts: null, mode: '', turn: 0, zoom: 0, lift: 0, moved: 0, frame: 0, target: null, noClick: 0 };
+  function read(ev) { var out = []; for (var i = 0; i < ev.touches.length && i < 2; i++) out.push([ev.touches[i].clientX, ev.touches[i].clientY]); return out; }
+  function redraw() { if (G.frame) return; G.frame = requestAnimationFrame(function () { G.frame = 0; V.controls.update(); draw(); }); }
+  function onMove(ev) {
+    ev.preventDefault();
+    var now = read(ev), was = G.pts;
+    if (!was || now.length !== was.length) { G.pts = now; G.mode = ''; G.turn = G.zoom = G.lift = 0; return; }
+    if (now.length === 1) {
+      var dx = now[0][0] - was[0][0], dy = now[0][1] - was[0][1];
+      G.moved += Math.abs(dx) + Math.abs(dy);
+      if (G.moved > 6) slide(dx, dy); else return;
+    } else {
+      var a0 = Math.atan2(was[1][1] - was[0][1], was[1][0] - was[0][0]), a1 = Math.atan2(now[1][1] - now[0][1], now[1][0] - now[0][0]);
+      var turn = Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0));
+      var d0 = Math.hypot(was[1][0] - was[0][0], was[1][1] - was[0][1]) || 1, d1 = Math.hypot(now[1][0] - now[0][0], now[1][1] - now[0][1]) || 1;
+      var cx = (now[0][0] + now[1][0] - was[0][0] - was[1][0]) / 2, cy = (now[0][1] + now[1][1] - was[0][1] - was[1][1]) / 2;
+      var m0 = now[0][1] - was[0][1], m1 = now[1][1] - was[1][1];
+      G.moved += 20; G.turn += turn; G.zoom += Math.log(d1 / d0); G.lift += m0 * m1 > 0 ? cy : 0;
+      if (!G.mode) {
+        if (Math.abs(G.turn) > 0.07 || Math.abs(G.zoom) > 0.07) G.mode = 'spin';
+        else if (Math.abs(G.lift) > 16) G.mode = 'tilt';
+      }
+      if (G.mode === 'tilt') orbit(0, -cy * 0.006, 1);
+      else if (G.mode === 'spin') { orbit(turn, 0, d1 / d0); slide(cx, cy); }
+    }
+    G.pts = now; redraw();
+  }
+  function onEnd(ev) {
+    if (ev.touches.length) { G.pts = read(ev); G.mode = ''; G.turn = G.zoom = G.lift = 0; return; }
+    var t = G.target; G.target = null; G.pts = null;
+    if (t) { t.removeEventListener('touchmove', onMove); t.removeEventListener('touchend', onEnd); t.removeEventListener('touchcancel', onEnd); }
+    if (G.moved > 8) G.noClick = Date.now();
+  }
+  function onStart(ev) {
+    ev.stopImmediatePropagation();
+    if (ev.touches.length === 1) { G.moved = 0; }
+    G.pts = read(ev); G.mode = ''; G.turn = G.zoom = G.lift = 0;
+    if (!G.target) { G.target = ev.target; G.target.addEventListener('touchmove', onMove, { passive: false }); G.target.addEventListener('touchend', onEnd); G.target.addEventListener('touchcancel', onEnd); }
+  }
   function init() {
     var T = window.THREE;
     V.canvas = document.createElement('canvas'); V.canvas.className = 'map3d';
@@ -225,6 +344,8 @@
     V.controls.addEventListener('change', draw);
     V.overlay = document.createElement('div'); V.overlay.className = 'pins3';
     V.overlay.addEventListener('click', function (e) {
+      if (Date.now() - G.noClick < 350) return;
+      if (Date.now() - G.noClick < 350) return;
       var b = e.target.closest ? e.target.closest('[data-pin]') : null;
       if (b && V.opts && V.opts.onSelect) V.opts.onSelect(+b.getAttribute('data-pin'));
     });
@@ -234,6 +355,10 @@
       if (V.down && Math.abs(e.clientX - V.down[0]) + Math.abs(e.clientY - V.down[1]) < 6 && V.opts && V.opts.onSelect && V.opts.sel >= 0) V.opts.onSelect(-1);
       V.down = null;
     });
+    V.canvas.addEventListener('touchstart', onStart, { capture: true, passive: true });
+    V.overlay.addEventListener('touchstart', onStart, { passive: true });
+    V.canvas.addEventListener('touchstart', onStart, { capture: true, passive: true });
+    V.overlay.addEventListener('touchstart', onStart, { passive: true });
     window.addEventListener('resize', function () { if (V.host && V.host.isConnected) { size(); draw(); } });
   }
 
@@ -277,6 +402,12 @@
       var t = V.controls.target, off = V.camera.position.clone().sub(t);
       V.camera.position.copy(t).add(off.setLength(off.length() < 330 ? 620 : 230)); V.controls.update(); draw();
     },
+    turn: function (deg) { orbit(deg * Math.PI / 180, 0, 1); V.controls.update(); draw(); },
+    north: function () { var t = V.controls.target, off = V.camera.position.clone().sub(t), sp = new window.THREE.Spherical().setFromVector3(off); orbit(-sp.theta, 0, 1); V.controls.update(); draw(); },
+    heading: function () { return V.controls ? V.controls.getAzimuthalAngle() * 180 / Math.PI : 0; },
+    turn: function (deg) { orbit(deg * Math.PI / 180, 0, 1); V.controls.update(); draw(); },
+    north: function () { var t = V.controls.target, off = V.camera.position.clone().sub(t), sp = new window.THREE.Spherical().setFromVector3(off); orbit(-sp.theta, 0, 1); V.controls.update(); draw(); },
+    heading: function () { return V.controls ? V.controls.getAzimuthalAngle() * 180 / Math.PI : 0; },
     isTop: function () { return V.controls ? V.controls.getPolarAngle() < 0.12 : false; },
     hide: function () { V.host = null; }
   };

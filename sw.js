@@ -1,6 +1,6 @@
 /* Umrah Companion offline copy. Bump VERSION after every change to the files below, or phones keep the old copy. */
-var VERSION = 'uc-v12';
-var FILES = ["./", "style.css", "content.js", "media.js", "maps.js", "base.js", "inside.js", "lessons.js", "scene.js", "map3d.js", "manifest.json", "icon-192.png", "icon-512.png", "apple-touch-icon.png", "adhan.umd.min.js", "app.js", "index.html"];
+var VERSION = 'uc-v13';
+var FILES = ["./", "style.css", "content.js", "media.js", "maps.js", "base.js", "inside.js", "floors.js", "lessons.js", "scene.js", "map3d.js", "manifest.json", "icon-192.png", "icon-512.png", "apple-touch-icon.png", "adhan.umd.min.js", "app.js", "index.html"];
 /* Fetched from other sites the first time they are needed, then kept: the 3D library and the fonts. */
 var KEEP = /^https:\/\/(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)\//;
 
