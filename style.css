@@ -431,3 +431,20 @@ input[type="date"] { -webkit-appearance: none; appearance: none; min-width: 0; m
 .filebtn { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; margin-top: 10px; }
 .filebtn input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; }
 .docfull img { display: block; width: 100%; border-radius: 10px; background: #fff; }
+
+/* ---- a larger map, full screen on request, and the class sheet ---- */
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.mappad { padding-top: calc(var(--sat) + 14px); }
+.mapbox.tall .map, .mapbox.tall .map3dbox { aspect-ratio: auto; height: calc(100vh - 335px); height: calc(100dvh - 335px); min-height: 380px; }
+.mapbox.full { position: fixed; inset: 0; z-index: 15; border-radius: 0; }
+.mapbox.full .map, .mapbox.full .map3dbox { height: 100vh; height: 100dvh; }
+.mapbox.full .mapmode, .mapbox.full .zoom { top: calc(env(safe-area-inset-top, 0px) + 14px + var(--stick)); }
+.fullbtn { position: absolute; left: 10px; bottom: 10px; min-height: 44px; padding: 0 16px; border: 0; border-radius: 14px; background: var(--card); color: var(--ink); font: inherit; font-weight: 700; font-size: .9rem; box-shadow: 0 2px 8px var(--shade); }
+.mapbox.full .fullbtn { bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
+html.mapfull #tabs { display: none; }
+.sheetcard.left { text-align: left; max-height: 66vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.sl { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); }
+.shead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.shead .btn { width: auto; min-height: 38px; padding: 0 16px; }
+.sheetcard .more { font-size: .88rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
+.sheetcard.left h3 { font-size: 1.2rem; }

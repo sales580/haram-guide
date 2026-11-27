@@ -110,18 +110,12 @@
     var T = window.THREE, s = V.scenes[V.cur], m = V.cur, dark = !!(V.opts && V.opts.dark), pm = s && s.userData.ground;
     if (!pm || !V.opts || !V.opts.ground || s.userData.groundDark === dark) return;
     s.userData.groundDark = dark;
-    var g = V.opts.ground(dark), c = centreOf(m), max = V.renderer.capabilities.maxTextureSize || 2048;
-    var W = Math.min(max, (navigator.deviceMemory && navigator.deviceMemory < 4) ? 2048 : 4096), H = Math.round(W * g.h / g.w), img = new Image();
-    img.onload = function () {
-      var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-      cv.getContext('2d').drawImage(img, 0, 0, W, H);
-      var tex = new T.CanvasTexture(cv); tex.anisotropy = Math.min(8, V.renderer.capabilities.getMaxAnisotropy());
-      if (pm.material.map) pm.material.map.dispose();
-      pm.material.map = tex; pm.material.needsUpdate = true;
-      pm.scale.set(g.w, 1, g.h); pm.position.set(g.x + g.w / 2 - c[0], 0.08, g.y + g.h / 2 - c[1]); pm.visible = true;
-      if (V.cur === m) draw();
-    };
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(g.svg.replace('<svg ', '<svg width="' + W + '" height="' + H + '" '));
+    var c = centreOf(m), max = V.renderer.capabilities.maxTextureSize || 2048;
+    var g = V.opts.ground(dark, Math.min(max, (navigator.deviceMemory && navigator.deviceMemory < 4) ? 2048 : 4096));
+    var tex = new T.CanvasTexture(g.canvas); tex.anisotropy = Math.min(8, V.renderer.capabilities.getMaxAnisotropy());
+    if (pm.material.map) pm.material.map.dispose();
+    pm.material.map = tex; pm.material.needsUpdate = true;
+    pm.scale.set(g.w, 1, g.h); pm.position.set(g.x + g.w / 2 - c[0], 0.08, g.y + g.h / 2 - c[1]); pm.visible = true;
   }
   function theme() {
     var T = window.THREE, s = V.scenes[V.cur], dark = !!(V.opts && V.opts.dark);
