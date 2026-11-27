@@ -1,4 +1,4 @@
-# Haram Guide
+# Haramain Path
 
 A free Umrah guide with maps and the current classes in Makkah and Madinah. Test version: the wording has not been checked by a scholar yet.
 

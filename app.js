@@ -1,4 +1,4 @@
-/* Haram Guide (first called Umrah Companion): screens and behaviour. Every word of guidance lives in content.js.
+/* Haramain Path (first called Umrah Companion): screens and behaviour. Every word of guidance lives in content.js.
    Routes are plain names (#home, #stage-5, #count-tawaf) so they also work inside the private preview page. */
 (function () {
   'use strict';
@@ -316,7 +316,7 @@
   }
   function vHomeClasses() {
     var C2 = comingClasses(), e = C2.list[0], n = planCount();
-    var h = '<header class="top home"><p>Assalamu alaykum</p><h1>Haram Guide</h1><p class="tagl">Classes in Makkah and Madinah</p></header><section class="pad homepad">';
+    var h = '<header class="top home"><p>Assalamu alaykum</p><h1>Haramain Path</h1><p class="tagl">Classes in Makkah and Madinah</p></header><section class="pad homepad">';
     if (e) {
       var D = LES.masjid[e.m], t = D.teachers[e.x.t] || {}, p = D.places[e.x.p] || {};
       h += '<div class="hero nextclass">' + face(e.m, e.x.t, 'bigface') + '<p class="hk">' + (e.on ? 'On now in ' : C2.today ? 'Next today in ' : e.d.label + ' in ') + CITY[e.m] + '</p><p class="hb">' + esc(e.x.en || e.x.ar) + '</p>' +
@@ -348,7 +348,7 @@
       else if (rd < ls.length) { small = 'Next: learn the steps, ' + rd + ' of ' + ls.length + ' read.'; to = 'learn'; }
       else { small = 'You are ready. Begin when you set out.'; btn = 'Begin my Umrah'; to = 'stage-1'; }
     }
-    var h = '<header class="top home"><p>Assalamu alaykum</p><h1>Haram Guide</h1><p class="tagl">Umrah guide, maps and today’s classes</p></header><section class="pad homepad">';
+    var h = '<header class="top home"><p>Assalamu alaykum</p><h1>Haramain Path</h1><p class="tagl">Umrah guide, maps and today’s classes</p></header><section class="pad homepad">';
     h += '<div class="hero">' + ring(pct, rb, rs) + '<div class="ht"><p class="hk">' + kick + '</p><p class="hb">' + esc(big) + '</p><p class="hs">' + esc(small) + '</p></div>' +
       (to ? '<button class="btn gold" data-go="' + to + '">' + btn + '</button>' : '') +
       (!S.date && !dn ? '<button class="lnk" data-go="setup">Add the date of your Umrah</button>' : '') + '</div>';
@@ -1250,7 +1250,7 @@
   }
   function icsText(list) {
     function q(t) { return String(t).replace(/\\/g, '\\\\').replace(/([,;])/g, '\\$1').replace(/\n/g, '\\n'); }
-    var L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Haram Guide//EN', 'CALSCALE:GREGORIAN'];
+    var L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Haramain Path//EN', 'CALSCALE:GREGORIAN'];
     list.forEach(function (e) {
       var v = evText(e);
       L.push('BEGIN:VEVENT', 'UID:' + lid(e.m, e.x).replace(/[^\w]/g, '-') + '@umrah-companion', 'DTSTAMP:' + stamp(Date.now()), 'DTSTART:' + stamp(e.a), 'DTEND:' + stamp(e.b),

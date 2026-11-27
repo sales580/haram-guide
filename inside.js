@@ -1,4 +1,4 @@
-/* Haram Guide: the inside of Masjid an-Nabawi, section by section.
+/* Haramain Path: the inside of Masjid an-Nabawi, section by section.
    Where each section, court and facility sits follows the General Authority's own visitor map of the Prophet's Mosque
    (third edition, May 2025; a copy is kept in source/official for reference). That map is a diagram, not a survey,
    so everything here was re-placed by hand onto the real outline of the building, using the gate numbers as anchors.
