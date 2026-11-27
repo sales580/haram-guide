@@ -350,7 +350,7 @@
     h += '<div class="hero">' + ring(pct, rb, rs) + '<div class="ht"><p class="hk">' + kick + '</p><p class="hb">' + esc(big) + '</p><p class="hs">' + esc(small) + '</p></div>' +
       (to ? '<button class="btn gold" data-go="' + to + '">' + btn + '</button>' : '') +
       (!S.date && !dn ? '<button class="lnk" data-go="setup">Add the date of your Umrah</button>' : '') + '</div>';
-    if (S.live && !nx) h += ask('restart', 'Start another Umrah', 'Clear your progress and both counters?', 'Yes, start again');
+    if (started()) h += resetAsk();
     if (S.purpose === 'both') h += todayCard();
     h += '<div class="tiles">' + tile('umrah', '01', 'Umrah steps', !nx ? 'Complete' : S.live ? 'Step ' + nx + ' of ' + TOTAL : seen + ' of ' + TOTAL + ' read', (S.live ? dn : seen) / TOTAL) +
       tile('prepare', '02', 'Get ready', cd + ' of ' + items.length + ' ticked', cd / Math.max(1, items.length)) +
@@ -566,6 +566,11 @@
   }
   function stepNow() { return R.look || (S.live ? nextStage() || TOTAL : 1); }
   function waiting(keys) { return S.duas.filter(function (d) { return !d.done && keys && keys.indexOf(d.w || 'any') >= 0; }).length; }
+  function started() { return !!(S.live || doneCount() || S.tawaf || S.sai); }
+  function resetAsk() {
+    var h = ask('restart', 'Start my Umrah again', 'Go back to step 1?', 'Yes, start again');
+    return h.replace('</h3>', '</h3><p class="hint">Your steps and both counters are cleared, and your duas are unticked. Your checklist, dua list, hotel and documents stay.</p>');
+  }
   function vStory(n) {
     var st = stage(n); if (!st) return vSteps();
     R.look = n;
@@ -588,6 +593,7 @@
       h += '<div class="sbtns"><button class="sbtn gold" data-go="count-' + st.counter + '">' + lab + '</button>' + where + more + next + '</div>';
     } else h += '<div class="sbtns">' + where + (where ? more : more.replace('class="sbtn"', 'class="sbtn full"')) + next.replace('class="sbtn"', 'class="sbtn gold' + (where ? '' : ' full') + '"') + '</div>';
     if (!S.live) h += '<button class="slive" data-act="live">You are reading ahead. <u>Start my Umrah</u> to keep your place.</button>';
+    if (started()) h += '<div class="sreset">' + resetAsk() + '</div>';
     return h + '</div></section>';
   }
   function vWhere(n) {
@@ -614,6 +620,7 @@
     if (!S.live) h += '<button class="btn" data-act="live">Start my Umrah</button><p class="hint">Until then you can read every step as often as you like, and nothing is marked as done.</p>';
     else if (!nx) h += '<div class="card"><h3>Umrah complete</h3><p>May Allah accept it from you.</p></div>';
     else h += '<button class="btn" data-go="stage-' + nx + '">Continue with step ' + nx + '</button>';
+    if (started()) h += resetAsk();
     h += '<div class="rows">' + C.stages.map(function (s) {
       var sp = stagePic(s.id), done = S.live && S.done[s.id];
       return '<button class="rowb' + (done ? ' done' : S.live && s.id === nx ? ' cur' : '') + ' haspic" data-go="stage-' + s.id + '">' + (hasPic(sp) ? pic(sp, 'rowpic', '') : '<span class="rowpic none"></span>') + '<span class="num">' + (done ? CHECK : s.id) + '</span>' +
@@ -623,7 +630,6 @@
     h += '<h2 class="gh">Also worth reading</h2><div class="rows">' + [['intro', 'Start here'], ['words', 'The Arabic terms you will hear'], ['women', 'Clothing, pace, your period, hair']].map(function (x) {
       return '<button class="rowb" data-go="lesson-' + x[0] + '"><span class="ct"><b>' + esc(C.lessons[x[0]].title) + '</b><small>' + x[1] + '</small></span><span class="chev">›</span></button>';
     }).join('') + '</div>';
-    if (S.live || dn || S.tawaf || S.sai) h += ask('restart', 'Start again from step 1', 'Clear your progress and both counters?', 'Yes, start again');
     return h + '</section>';
   }
 
@@ -1527,10 +1533,10 @@
     else if (a === 'count-next') {
       C.stages.forEach(function (s) { if (s.counter === k) { if (S.live) S.done[s.id] = true; save(); go('stage-' + (s.id + 1)); } });
     }
-    else if (a === 'ask') { R.ask = k || ''; render(); }
+    else if (a === 'ask') { R.ask = k || ''; render(); el = k === 'restart' && view.querySelector('[data-act="yes"]'); if (el) el.closest('.card').scrollIntoView({ block: 'center' }); }
     else if (a === 'yes') {
       R.ask = '';
-      if (k === 'restart') { S.done = {}; S.live = false; S.tawaf = 0; S.sai = 0; R.look = 0; save(); go('stage-1'); }
+      if (k === 'restart') { S.done = {}; S.live = false; S.tawaf = 0; S.sai = 0; S.duas.forEach(function (d) { d.done = false; }); R.look = 0; save(); go('stage-1'); toast('Your Umrah is reset. You are at step 1.'); }
       else if (k === 'reset-tawaf') { S.tawaf = 0; save(); render(); }
       else if (k === 'reset-sai') { S.sai = 0; save(); render(); }
       else if (k === 'erase') { try { window.localStorage.removeItem(KEY); } catch (e) {} idb('readwrite', function (st) { return st.clear(); }).catch(function () {}); S = fresh(); go('setup'); }

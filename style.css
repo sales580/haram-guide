@@ -516,3 +516,7 @@ html.storyon #app { padding-bottom: 0; background: #061610; }
 .slive u { color: #F0D88F; font-weight: 700; }
 .skick p, .skick button { text-shadow: 0 1px 6px rgba(0, 0, 0, .85); }
 .top.home .tagl { order: 0; }
+/* the reset button under a step: quiet until tapped, then a plain question */
+.sreset { margin-top: 6px; }
+.sreset > .btn.ghost { min-height: 42px; border: 0; color: #C7D8CE; font-size: .86rem; text-decoration: underline; }
+.sreset .card { color: var(--ink); }
