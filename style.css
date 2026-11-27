@@ -417,3 +417,17 @@ input[type="date"] { -webkit-appearance: none; appearance: none; min-width: 0; m
 .zonekey { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .82rem; color: var(--muted); padding: 0 4px; }
 .zonekey span { display: inline-flex; align-items: center; gap: 6px; }
 .zonekey i { width: 16px; height: 16px; border-radius: 5px; border: 1px solid var(--line); display: inline-block; }
+
+/* ---- documents, hotel finder, dua ideas ---- */
+.seg3.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.seg3.four button { font-size: min(.8rem, 15px); padding: 0 2px; }
+.card > a.btn { margin-top: 8px; }
+.ideas { display: flex; flex-wrap: wrap; gap: 8px; }
+.idea { border: 1.5px dashed var(--gold); background: var(--card); color: var(--ink); border-radius: 999px; padding: 9px 14px; font: inherit; font-size: .9rem; font-weight: 600; text-align: left; }
+.docs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.doc { border: 0; padding: 0 0 10px; border-radius: 16px; overflow: hidden; background: var(--card); color: var(--ink); box-shadow: 0 4px 14px var(--shade-2), 0 1px 3px var(--shade-2); display: flex; flex-direction: column; gap: 8px; font: inherit; }
+.doc img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: var(--soft); }
+.doc b { padding: 0 12px; text-align: left; font-size: .95rem; }
+.filebtn { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; margin-top: 10px; }
+.filebtn input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; }
+.docfull img { display: block; width: 100%; border-radius: 10px; background: #fff; }

@@ -4,7 +4,7 @@
   'use strict';
   var C = window.UMRAH_CONTENT, ENV = window.UMRAH_ENV || {};
   var KEY = 'umrahCompanion.v1';
-  var DEF = { setup: false, gender: '', school: '', route: '', date: '', size: 0, checks: {}, read: {}, done: {}, tawaf: 0, sai: 0, duas: [], card: {}, masjid: '', mapMode: '3d', plan: {}, lang: '' };
+  var DEF = { setup: false, gender: '', school: '', route: '', date: '', size: 0, checks: {}, read: {}, done: {}, tawaf: 0, sai: 0, duas: [], card: {}, masjid: '', mapMode: '3d', plan: {}, lang: '', docs: [], hotel: {} };
   function fresh() { return JSON.parse(JSON.stringify(DEF)); }
 
   /* Everything the pilgrim enters stays on this phone (localStorage). Nothing is sent anywhere. */
@@ -26,7 +26,7 @@
   var CHECK = '<svg class="ck" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   var PLAY = '<svg class="pl" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
   var TABS = [['home', 'Home'], ['prepare', 'Prepare'], ['learn', 'Learn'], ['perform', 'Perform'], ['maps', 'Maps'], ['help', 'Help']];
-  var ROUTE = /^(home|prepare|prep-duas|prep-card|learn|perform|help|card|setup|maps|map-makkah|map-madinah|lessons-makkah|lessons-madinah|plan|count-tawaf|count-sai|duas|teacher-makkah-\d+|teacher-madinah-\d+|lesson-[a-z]+|read-\d+|stage-\d+|help-[a-z]+)$/;
+  var ROUTE = /^(home|prepare|prep-duas|prep-card|learn|perform|help|card|setup|maps|map-makkah|map-madinah|lessons-makkah|lessons-madinah|plan|prep-docs|doc-\d+|count-tawaf|count-sai|duas|teacher-makkah-\d+|teacher-madinah-\d+|lesson-[a-z]+|read-\d+|stage-\d+|help-[a-z]+)$/;
 
   /* ---------- small helpers ---------- */
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
@@ -96,13 +96,20 @@
   function segs(n) {
     return '<div class="segs" aria-hidden="true">' + C.stages.map(function (s) { return '<i class="' + (S.done[s.id] ? 'd' : '') + (s.id === n ? ' c' : '') + '"></i>'; }).join('') + '</div>';
   }
-  function myDuas() {
-    var open = S.duas.filter(function (d) { return !d.done; });
-    if (!open.length) return '';
-    return '<div class="card"><h3>My dua list</h3><ul class="plain">' + open.map(function (d) { return '<li>' + esc(d.t) + '</li>'; }).join('') + '</ul></div>';
+  var WHENS = [['any', 'Any time'], ['tawaf', 'During tawaf'], ['rakah', 'After the two rak‘ahs'], ['zamzam', 'When drinking Zamzam'], ['safa', 'On Safa and Marwah'], ['sai', 'During sa‘i'], ['rawdah', 'In the Rawdah'], ['sujud', 'In sujud and after prayers']];
+  var STAGE_WHEN = { 5: ['tawaf'], 6: ['rakah'], 7: ['zamzam'], 8: ['safa', 'sai'] };
+  function whenName(w) { for (var i = 0; i < WHENS.length; i++) if (WHENS[i][0] === w) return WHENS[i][1]; return ''; }
+  /* the pilgrim's own duas for the place they are at now: the ones chosen for this moment first, then the any-time ones */
+  function myDuas(keys) {
+    var rows = [];
+    S.duas.forEach(function (d, i) { if (!d.done) { var w = d.w || 'any', here = keys && keys.indexOf(w) >= 0; if (here || w === 'any' || !keys) rows.push([here ? 0 : 1, i, d]); } });
+    if (!rows.length) return '';
+    rows.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+    return '<div class="card"><h3>' + (keys ? 'My duas for this moment' : 'My dua list') + '</h3><div class="rows">' + rows.map(function (r) {
+      return '<div class="item">' + chk(false, r[2].t, r[0] === 0 ? whenName(r[2].w) : '', 'data-act="dua-tick" data-i="' + r[1] + '"') + '</div>';
+    }).join('') + '</div><p class="hint">Tick a dua once you have made it. You can make dua at any time and in any language.</p><button class="btn ghost small" data-go="duas">All my duas</button></div>';
   }
 
-  /* ---------- the two plans: solid shapes, labels in words ---------- */
   /* ---------- route maps: each one is drawn on the real map of the Masjid, so the shapes and distances are true ---------- */
   var KB = { c: [661.1, 727.4], stone: [668.9, 729.7], yemeni: [660.5, 735.4], hijr: [655.6, 717.6], maqam: [674.6, 720.7], light: [729.5, 752.8], safa: [790.7, 806.9], marwah: [759.6, 433.3] };
   function f1(v) { return (+v).toFixed(1); }
@@ -289,6 +296,7 @@
       tile('learn', '02', 'Learn', rd + ' of ' + ls.length + ' read', rd / ls.length) +
       tile('perform', '03', 'Perform', !nx ? 'Complete' : dn ? 'Stage ' + nx + ' of ' + TOTAL : TOTAL + ' stages', dn / TOTAL) +
       tile('duas', '04', 'My duas', S.duas.length ? S.duas.filter(function (x) { return !x.done; }).length + ' still to make' : 'Write them here') + tile('maps', '05', 'Maps', 'Both masajid in 3D') + tile('lessons-' + (S.masjid || 'makkah'), '06', 'Lessons', lessonCount()) + '</div>';
+    h += '<button class="rowb solo" data-go="prep-docs"><span class="ct"><b>My documents</b><small>' + (S.docs.length ? S.docs.length + ' saved, ready to show' : 'Visa links, and your papers ready to show') + '</small></span><span class="chev">›</span></button>';
     h += '<button class="rowb solo" data-go="help"><span class="ct"><b>Help</b><small>What to do when something goes wrong</small></span><span class="chev">›</span></button>';
     h += todayCard();
     h += '<div class="me"><div class="line"><p>' + esc(details()) + '</p><button class="btn ghost small" data-go="setup">Change</button></div>' +
@@ -310,33 +318,154 @@
     return h;
   }
   var DGROUPS = [['me', 'For myself'], ['family', 'My family'], ['asked', 'People who asked me'], ['ummah', 'The ummah']];
+  var IDEAS = {
+    me: ['Forgiveness for my sins', 'To be kept firm on the deen', 'An accepted Umrah', 'Good health', 'Halal provision with barakah', 'A good end to my life', 'Relief from a worry I carry', 'To come back here again'],
+    family: ['My mother', 'My father', 'My spouse', 'My children and their guidance', 'My brothers and sisters', 'My grandparents', 'Relatives who have passed away', 'A family member who is ill'],
+    asked: ['Friends who asked me for dua', 'My teachers', 'My neighbours', 'The people of my masjid', 'Someone who helped me', 'Someone I have wronged'],
+    ummah: ['The sick', 'The oppressed', 'People living through war and hardship', 'Muslims who have passed away', 'The youth', 'Unity and guidance for the ummah']
+  };
   function duaList() {
-    var g = R.duaGroup || 'me';
+    var g = R.duaGroup || 'me', w = R.duaWhen || 'any', have = {};
+    S.duas.forEach(function (d) { have[d.t] = 1; });
     var h = '<p class="lead">Write the duas you want to make, and the names of people who asked you to pray for them. They stay on this phone only.</p>' +
-      '<div class="opts">' + DGROUPS.map(function (x) { return '<button class="opt" data-act="dua-group" data-v="' + x[0] + '" aria-pressed="' + (g === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<h2 class="gh">Who is it for?</h2><div class="opts">' + DGROUPS.map(function (x) { return '<button class="opt" data-act="dua-group" data-v="' + x[0] + '" aria-pressed="' + (g === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<h2 class="gh">When will you make it?</h2><div class="opts">' + WHENS.map(function (x) { return '<button class="opt" data-act="dua-when" data-v="' + x[0] + '" aria-pressed="' + (w === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
       '<div class="addrow"><input type="text" id="dua-in" maxlength="200" placeholder="Health for my parents" aria-label="A dua or a name"><button class="btn small" data-act="dua-add">Add</button></div>';
-    if (!S.duas.length) return h + '<p class="hint">Your list is empty.</p>';
+    var ideas = IDEAS[g].filter(function (t) { return !have[t]; });
+    if (ideas.length) h += '<h2 class="gh">Ideas. Tap one to add it</h2><div class="ideas">' + ideas.map(function (t) { return '<button class="idea" data-act="dua-idea" data-t="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') + '</div>';
+    if (!S.duas.length) return h + '<p class="hint">Your list is empty. Pick who it is for and when, then type a dua or tap an idea.</p>';
     DGROUPS.forEach(function (x) {
       var rows = '';
-      S.duas.forEach(function (d, i) { if ((d.g || 'me') === x[0]) rows += '<div class="item">' + chk(!!d.done, d.t, '', 'data-act="dua-tick" data-i="' + i + '"') + '<button class="del" data-act="dua-del" data-i="' + i + '">Remove</button></div>'; });
+      S.duas.forEach(function (d, i) { if ((d.g || 'me') === x[0]) rows += '<div class="item">' + chk(!!d.done, d.t, d.w && d.w !== 'any' ? whenName(d.w) : '', 'data-act="dua-tick" data-i="' + i + '"') + '<button class="del" data-act="dua-del" data-i="' + i + '">Remove</button></div>'; });
       if (rows) h += '<h2 class="gh">' + x[1] + '</h2><div class="rows">' + rows + '</div>';
     });
-    return h + '<p class="hint">Your list also appears under both counters. Tick a dua once you have made it.</p>';
+    return h + '<p class="hint">During your Umrah, the duas you chose for a moment appear on that step of the guide and under both counters. Tick a dua once you have made it.</p>';
   }
   function vDuas() { return top('My duas', 'home', 'Keep them with you') + '<section class="pad">' + pic('rawdah', 'bannerpic', '') + duaList() + '</section>'; }
+  /* ---- my hotel: found by name, then the way to the Haram worked out from it ---- */
+  function gateLL(m, p) { var P = MAPS[m].proj; return [P.latN - p.y / P.ky, P.lonW + p.x / P.kx]; }
+  function hotelGuide() {
+    var H = S.hotel || {}; if (!H.lat) return '';
+    var m = kmBetween(H.lat, H.lon, SPOT.makkah[0], SPOT.makkah[1]) <= kmBetween(H.lat, H.lon, SPOT.madinah[0], SPOT.madinah[1]) ? 'makkah' : 'madinah';
+    var best = null, bd = 1e9, bi = -1;
+    pinsOf(m).forEach(function (p, i) { if (p.k !== 'gate') return; var ll = gateLL(m, p), d = kmBetween(H.lat, H.lon, ll[0], ll[1]); if (d < bd) { bd = d; best = p; bi = i; } });
+    var far = kmBetween(H.lat, H.lon, SPOT[m][0], SPOT[m][1]);
+    var h = '<div class="card navcard"><p class="hk">From your hotel to ' + esc(MAPS[m].title) + '</p>';
+    if (far > 60 || !best) return h + '<p>This place is about ' + Math.round(far).toLocaleString('en-US') + ' km from the Masjid, so it does not look like a hotel in ' + CITY[m] + '. Search again with the city name.</p></div>';
+    var ll = gateLL(m, best), metres = bd * 1000, dx = (ll[1] - H.lon) * Math.cos(H.lat * Math.PI / 180), dy = ll[0] - H.lat, wd = WIND[Math.round(((Math.atan2(dx, dy) * 180 / Math.PI) + 360) / 45) % 8];
+    var gname = best.n.indexOf('Gate ') === 0 ? best.n : 'Gate ' + String(best.r).split(',')[0] + ', ' + best.n, dest = ll[0].toFixed(6) + ',' + ll[1].toFixed(6);
+    if (metres < 2500) h += '<p class="navbig">' + (metres < 950 ? Math.max(50, Math.round(metres / 50) * 50) + ' m' : (metres / 1000).toFixed(1) + ' km') + ' · about ' + Math.max(2, Math.round(metres * 1.3 / 70)) + ' min on foot</p><p>The nearest gate to your hotel is <b>' + esc(gname) + '</b>. From your hotel it lies to the <b>' + wd + '</b>.</p>';
+    else h += '<p class="navbig">' + (metres / 1000).toFixed(1) + ' km away</p><p>That is far to walk. Ask your hotel about its shuttle bus, or take a taxi and ask for <b>' + esc(gname) + '</b>.</p>';
+    h += '<div class="two"><a class="btn small" href="https://maps.apple.com/?daddr=' + dest + '&dirflg=w" target="_blank" rel="noopener">Walking route in Apple Maps</a><a class="btn ghost small" href="https://www.google.com/maps/dir/?api=1&destination=' + dest + '&travelmode=walking" target="_blank" rel="noopener">In Google Maps</a></div>' +
+      '<div class="two"><button class="btn ghost small" data-act="hotel-gate" data-m="' + m + '" data-i="' + bi + '">Show this gate on the map</button><a class="btn ghost small" href="https://maps.apple.com/?daddr=' + H.lat.toFixed(6) + ',' + H.lon.toFixed(6) + '&dirflg=w" target="_blank" rel="noopener">Way back to my hotel</a></div>';
+    return h + '<p class="hint">The distance is in a straight line with a little added for streets, so the real walk can be longer. Remember your gate number: it is how you find your way back.</p></div>';
+  }
+  function hotelFind() {
+    var el = document.getElementById('hotel-q'), q = el ? el.value.trim() : '';
+    if (q.length < 3) { toast('Type the hotel name first'); return; }
+    R.hotelQ = q; R.hotelHits = null; R.hotelMsg = 'Searching…'; render();
+    var done = function (msg, hits) { R.hotelMsg = msg; R.hotelHits = hits; if (/^prep-card/.test(R.route)) render(); };
+    try {
+      fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&addressdetails=1&namedetails=1&accept-language=en&countrycodes=sa&q=' + encodeURIComponent(q))
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+        .then(function (d) { done(d && d.length ? '' : 'Nothing found. Try the hotel name with the city, for example “Hilton Makkah”.', d || []); })
+        .catch(function () { done(ENV.preview ? 'The private link cannot search. It works in the app on your phone.' : 'The search could not be reached. Check your connection and try again.', null); });
+    } catch (e) { done('The search could not be reached.', null); }
+  }
+  function hotelPick(i) {
+    var x = (R.hotelHits || [])[i]; if (!x) return;
+    var a = x.address || {}, nd = x.namedetails || {}, name = nd['name:en'] || x.name || String(x.display_name || '').split(',')[0];
+    S.hotel = { lat: +x.lat, lon: +x.lon, name: name };
+    S.card.hotel = name;
+    var ar = nd['name:ar'] || (/[؀-ۿ]/.test(nd.name || '') ? nd.name : '');
+    if (ar) S.card.hotelAr = ar;
+    S.card.area = [a.road, a.suburb || a.neighbourhood || a.quarter, a.city || a.town || a.state].filter(Boolean).join(', ');
+    R.hotelHits = null; R.hotelMsg = ''; save(); toast('Hotel added to your card'); render();
+  }
   function cardForm() {
-    var c = S.card || {}, h = '<p class="lead">If you are lost, show this card to a guard, a driver or anyone nearby.</p>';
+    var c = S.card || {}, h = '<div class="card"><h3>Find my hotel</h3><p>Type your hotel’s name and the app fills in the card and works out the way to the Haram.</p>' +
+      '<div class="addrow"><input type="text" id="hotel-q" maxlength="120" placeholder="Swissotel Makkah" aria-label="Hotel name" value="' + esc(R.hotelQ || '') + '"><button class="btn small" data-act="hotel-find">Find</button></div>';
+    if (R.hotelMsg) h += '<p class="hint">' + esc(R.hotelMsg) + '</p>';
+    if (R.hotelHits && R.hotelHits.length) h += '<div class="rows">' + R.hotelHits.map(function (x, i) {
+      var parts = String(x.display_name || '').split(',');
+      return '<button class="rowb" data-act="hotel-pick" data-i="' + i + '"><span class="ct"><b>' + esc(parts[0]) + '</b><small>' + esc(parts.slice(1, 4).join(',').trim()) + '</small></span><span class="chev">›</span></button>';
+    }).join('') + '</div>';
+    h += '<p class="src">The search sends only the name you type to OpenStreetMap’s search service. Results © OpenStreetMap contributors.</p></div>' + hotelGuide();
+    h += '<p class="lead">If you are lost, show this card to a guard, a driver or anyone nearby.</p>';
     C.card.fields.forEach(function (f) {
       h += '<label class="fl">' + esc(f[1]) + '<input type="' + f[2] + '" id="c-' + f[0] + '" data-card="' + f[0] + '" value="' + esc(c[f[0]] || '') + '"' + (f[0] === 'hotelAr' ? ' dir="auto"' : '') + '></label>';
     });
     return h + '<button class="btn" data-go="card">Show my card</button>';
   }
+  /* ---- my documents: photographs kept on this phone only (in the browser's own store), ready to show an official ---- */
+  var DOCKINDS = [['passport', 'Passport'], ['visa', 'Visa'], ['permit', 'Nusuk permit'], ['flight', 'Flight ticket'], ['hotel', 'Hotel booking'], ['health', 'Insurance or vaccination'], ['other', 'Other']];
+  function docName(k) { for (var i = 0; i < DOCKINDS.length; i++) if (DOCKINDS[i][0] === k) return DOCKINDS[i][1]; return 'Document'; }
+  function idb(mode, fn) {
+    return new Promise(function (ok, no) {
+      try {
+        var q = window.indexedDB.open('haramGuide', 1);
+        q.onupgradeneeded = function () { q.result.createObjectStore('docs'); };
+        q.onerror = function () { no(q.error); };
+        q.onsuccess = function () {
+          var tx = q.result.transaction('docs', mode), st = tx.objectStore('docs'), out = fn(st);
+          tx.oncomplete = function () { ok(out && out.result); }; tx.onerror = function () { no(tx.error); };
+        };
+      } catch (e) { no(e); }
+    });
+  }
+  function docAdd(file) {
+    if (!file) return;
+    var url = URL.createObjectURL(file), img = new Image();
+    img.onload = function () {
+      /* shrink big photographs so many documents fit, while the small print stays readable */
+      var k = Math.min(1, 2400 / Math.max(img.naturalWidth, img.naturalHeight)), cv = document.createElement('canvas');
+      cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url);
+      cv.toBlob(function (blob) {
+        var id = Date.now();
+        idb('readwrite', function (st) { return st.put(blob, id); }).then(function () {
+          S.docs.push({ id: id, k: R.docKind || 'passport' }); save(); toast('Saved on this phone'); render();
+        }).catch(function () { toast('This phone could not save the picture'); });
+      }, 'image/jpeg', 0.86);
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); toast('That file is not a picture. Take a photo or a screenshot of it'); };
+    img.src = url;
+  }
+  function docPaint() {
+    [].forEach.call(document.querySelectorAll('img[data-doc]'), function (el) {
+      var id = +el.getAttribute('data-doc');
+      idb('readonly', function (st) { return st.get(id); }).then(function (blob) { if (blob) el.src = URL.createObjectURL(blob); }).catch(function () {});
+    });
+  }
+  function docsView() {
+    var k = R.docKind || 'passport';
+    var h = '<div class="card"><h3>Visa and permits</h3><p>Apply only through the official Saudi sites. Which visa you need depends on your passport, and the rules change, so check before you book.</p>' +
+      '<a class="btn ghost small" href="https://www.nusuk.sa" target="_blank" rel="noopener">Nusuk: Umrah visas, packages and permits</a>' +
+      '<a class="btn ghost small" href="https://visa.visitsaudi.com" target="_blank" rel="noopener">Saudi eVisa (tourist visa)</a>' +
+      '<a class="btn ghost small" href="https://www.haj.gov.sa" target="_blank" rel="noopener">Ministry of Hajj and Umrah</a>' +
+      '<p class="hint">The Rawdah in Madinah needs a free permit, booked in the Nusuk app.</p></div>';
+    h += '<h2 class="gh">My documents</h2><p class="lead">Keep a photograph of each paper here, ready to show at the airport, the hotel or a checkpoint.</p>';
+    if (S.docs.length) h += '<div class="docs">' + S.docs.map(function (d) {
+      return '<button class="doc" data-go="doc-' + d.id + '"><img data-doc="' + d.id + '" alt=""><b>' + esc(docName(d.k)) + '</b></button>';
+    }).join('') + '</div>';
+    h += '<div class="card"><h3>Add a document</h3><div class="opts">' + DOCKINDS.map(function (x) { return '<button class="opt" data-act="doc-kind" data-v="' + x[0] + '" aria-pressed="' + (k === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<label class="btn filebtn">Take or choose a picture<input type="file" id="doc-file" accept="image/*"></label>' +
+      '<p class="hint">Pictures stay on this phone and are never sent anywhere. Anyone who can open your phone can see them, so keep your phone locked. Always carry the real passport too.</p></div>';
+    return h;
+  }
+  function vDoc(id) {
+    var d = null; S.docs.forEach(function (x) { if (x.id === id) d = x; });
+    if (!d) return vPrepare('prep-docs');
+    return top(docName(d.k), 'prep-docs', 'Show this screen') + '<section class="pad docfull"><img data-doc="' + d.id + '" alt="' + esc(docName(d.k)) + '">' +
+      '<p class="hint">Pinch to zoom. Turn your screen brightness up if a scanner cannot read it.</p>' +
+      (R.docDel === d.id ? '<div class="card"><p>Remove this picture from the app?</p><div class="two"><button class="btn ghost small" data-act="doc-keep">No</button><button class="btn small" data-act="doc-del" data-id="' + d.id + '">Yes, remove</button></div></div>' : '<button class="btn ghost small" data-act="doc-ask" data-id="' + d.id + '">Remove this picture</button>') + '</section>';
+  }
   function vPrepare(r) {
-    var t = [['prepare', 'Checklist'], ['prep-duas', 'Dua list'], ['prep-card', 'Hotel card']];
-    var h = top('Prepare', '', 'Before you travel') + '<section class="pad"><div class="seg3" role="tablist">' + t.map(function (x) {
+    var t = [['prepare', 'Checklist'], ['prep-duas', 'Duas'], ['prep-card', 'Hotel'], ['prep-docs', 'Documents']];
+    var h = top('Prepare', '', 'Before you travel') + '<section class="pad"><div class="seg3 four" role="tablist">' + t.map(function (x) {
       return '<button role="tab" aria-selected="' + (x[0] === r) + '" data-go="' + x[0] + '">' + x[1] + '</button>';
     }).join('') + '</div>';
-    return h + (r === 'prep-duas' ? duaList() : r === 'prep-card' ? cardForm() : checklist()) + '</section>';
+    return h + (r === 'prep-duas' ? duaList() : r === 'prep-card' ? cardForm() : r === 'prep-docs' ? docsView() : checklist()) + '</section>';
   }
   function vCard() {
     var c = S.card || {}, F = {}, any = false;
@@ -405,6 +534,7 @@
     CUR_PIC = n === 2 && S.route === 'makkah' ? 'tanim' : (STAGE_PIC[n] || '');
     if (hasPic(CUR_PIC)) h += '<figure class="shot">' + pic(CUR_PIC, '', st.title) + '<figcaption>What to look for</figcaption></figure>';
     if (st.counter && !read) h += counterEntry(st.counter);
+    if (!read && STAGE_WHEN[n]) h += myDuas(STAGE_WHEN[n]);
     if (st.img) h += '<figure class="fig"><p class="hk">Where to go</p>' + PLAN[st.img]() + '<figcaption>' + esc(st.cap) + '</figcaption><button class="btn ghost small" data-go="map-makkah">Open the full map</button></figure>';
     h += st.steps.filter(visible).map(stepHTML).join('') + legend();
     if (read) h += '<button class="btn" data-act="read" data-id="s' + n + '">' + (S.read['s' + n] ? 'Back to lessons' : 'Mark as read') + '</button>';
@@ -444,7 +574,7 @@
     if (R.ask === 'reset-' + kind) h += ask('reset-' + kind, '', 'Set this counter back to zero?', 'Yes, start again');
     if (taw) h += '<div class="card"><h3>Between the Yemeni corner and the Black Stone</h3>' + duaHTML('rabbana') + '</div>';
     else h += '<div class="card"><h3>On Safa and on Marwah</h3>' + duaHTML('safaDhikr') + '</div><div class="card"><h3>Between the green lights</h3>' + duaHTML('green') + '</div>';
-    return h + myDuas() + '</section>';
+    return h + myDuas(taw ? ['tawaf'] : ['safa', 'sai']) + '</section>';
   }
 
   /* ---------- help ---------- */
@@ -1079,7 +1209,8 @@
     document.documentElement.setAttribute('data-size', String(S.size || 0));
     var r = S.setup ? R.route : 'setup', tab = 'home', h;
     if (r === 'setup') { h = vSetup(); tab = S.setup ? 'home' : ''; }
-    else if (r === 'prepare' || r === 'prep-duas' || r === 'prep-card') { h = vPrepare(r); tab = 'prepare'; }
+    else if (r.indexOf('doc-') === 0) { h = vDoc(+r.slice(4)); tab = 'prepare'; }
+    else if (r === 'prepare' || r === 'prep-duas' || r === 'prep-card' || r === 'prep-docs') { h = vPrepare(r); tab = 'prepare'; }
     else if (r === 'learn') { h = vLearn(); tab = 'learn'; }
     else if (r.indexOf('lesson-') === 0) { h = vLesson(r.slice(7)); tab = 'learn'; }
     else if (r.indexOf('read-') === 0) { h = vStage(+r.slice(5), true); tab = 'learn'; }
@@ -1097,6 +1228,7 @@
     else { R.route = 'home'; h = vHome(); }
     if (r === 'home' && !R.popDone) { R.popDone = true; try { R.pop = upcoming(); } catch (e) { R.pop = null; } }
     view.innerHTML = h + (R.pop && (r === 'home' || r.indexOf('lessons-') === 0) ? popup() : '');
+    if (document.querySelector('img[data-doc]')) docPaint();
     var cals = document.getElementById('cals'), curM = cals ? cals.querySelector('[data-cur]') : null;
     if (curM) cals.scrollLeft = curM.offsetLeft - cals.offsetLeft;
     R.redraw = null;
@@ -1134,7 +1266,7 @@
     else if (a === 'dua-add') {
       el = document.getElementById('dua-in'); var v = el ? el.value.trim() : '';
       if (!v) { toast('Type a dua or a name first'); return; }
-      S.duas.push({ t: v, done: false, g: R.duaGroup || 'me' }); save(); render();
+      S.duas.push({ t: v, done: false, g: R.duaGroup || 'me', w: R.duaWhen || 'any' }); save(); render();
       el = document.getElementById('dua-in'); if (el) el.focus();
     }
     else if (a === 'dua-tick') { if (S.duas[i]) { S.duas[i].done = !S.duas[i].done; save(); render(); } }
@@ -1158,7 +1290,7 @@
       if (k === 'restart') { S.done = {}; S.tawaf = 0; S.sai = 0; save(); go('perform'); }
       else if (k === 'reset-tawaf') { S.tawaf = 0; save(); render(); }
       else if (k === 'reset-sai') { S.sai = 0; save(); render(); }
-      else if (k === 'erase') { try { window.localStorage.removeItem(KEY); } catch (e) {} S = fresh(); go('setup'); }
+      else if (k === 'erase') { try { window.localStorage.removeItem(KEY); } catch (e) {} idb('readwrite', function (st) { return st.clear(); }).catch(function () {}); S = fresh(); go('setup'); }
     }
     else if (a === 'layer') { R.layers[k] = !R.layers[k]; render(); }
     else if (a === 'zoom') {
@@ -1186,6 +1318,15 @@
     else if (a === 'nav') { navStart(+t.getAttribute('data-i')); }
     else if (a === 'nav-stop') { R.nav = null; gpsPaint(false); }
     else if (a === 'inside') { if (window.UMRAH_3D && R.redraw) { window.UMRAH_3D.inside(); } }
+    else if (a === 'hotel-find') { hotelFind(); }
+    else if (a === 'hotel-pick') { hotelPick(+t.getAttribute('data-i')); }
+    else if (a === 'hotel-gate') { var hm = t.getAttribute('data-m'); R.layers.gate = true; focusPin(hm, +t.getAttribute('data-i')); go('map-' + hm); }
+    else if (a === 'doc-kind') { R.docKind = t.getAttribute('data-v'); render(); }
+    else if (a === 'doc-ask') { R.docDel = +t.getAttribute('data-id'); render(); }
+    else if (a === 'doc-keep') { R.docDel = 0; render(); }
+    else if (a === 'doc-del') { var did = +t.getAttribute('data-id'); idb('readwrite', function (st) { return st.delete(did); }).catch(function () {}); S.docs = S.docs.filter(function (x) { return x.id !== did; }); R.docDel = 0; save(); go('prep-docs'); }
+    else if (a === 'dua-when') { R.duaWhen = t.getAttribute('data-v'); render(); }
+    else if (a === 'dua-idea') { S.duas.push({ t: t.getAttribute('data-t'), done: false, g: R.duaGroup || 'me', w: R.duaWhen || 'any' }); save(); toast('Added'); render(); }
     else if (a === 'dua-group') { R.duaGroup = t.getAttribute('data-v'); render(); }
     else if (a === 'listen') { toast('Audio is not recorded yet. A reciter will record it.'); }
   }
@@ -1201,11 +1342,14 @@
     var ck = t.getAttribute('data-card');
     if (ck) { S.card[ck] = t.value; save(); }
     else if (t.id === 'f-date') { S.date = t.value; save(); }
+    else if (t.id === 'doc-file' && e.type === 'change') { docAdd(t.files && t.files[0]); }
+    else if (t.id === 'hotel-q') { R.hotelQ = t.value; }
   }
   document.addEventListener('input', typed);
   document.addEventListener('change', typed);
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && e.target && e.target.id === 'dua-in') { e.preventDefault(); act('dua-add', e.target); }
+    if (e.key === 'Enter' && e.target && e.target.id === 'hotel-q') { e.preventDefault(); hotelFind(); }
     if (e.key === 'Enter' && e.target && e.target.id === 'gate-in') { e.preventDefault(); findGate(); }
   });
   document.addEventListener('visibilitychange', wake);
