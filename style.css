@@ -543,3 +543,13 @@ html.storyon #app { padding-bottom: 0; background: #061610; }
 .wcinfo dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; align-items: baseline; }
 .wcinfo dt { font-size: .8rem; font-weight: 600; color: var(--muted); }
 .wcinfo dd { font-size: 1.15rem; font-weight: 700; }
+/* five tabs now that Settings has its own */
+#tabs a { font-size: 12px; }
+@media (max-width: 380px) { #tabs a { font-size: 11px; letter-spacing: -.01em; } }
+.chips .chip:last-child:nth-child(odd) { grid-column: 1 / -1; justify-content: center; }
+.pin3.ic.k-library { width: 32px; height: 32px; }
+.spotpic { margin: 0; border-radius: 14px; overflow: hidden; background: var(--page); }
+.spotpic img { display: block; width: 100%; height: auto; max-height: 320px; object-fit: cover; }
+.spotpic figcaption { display: flex; flex-direction: column; gap: 1px; padding: 8px 12px; }
+.spotpic figcaption b { font-size: .9rem; }
+.spotpic figcaption small { font-size: .7rem; color: var(--muted); }

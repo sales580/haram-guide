@@ -22,14 +22,14 @@
   if (!S.live && Object.keys(S.done).length) S.live = true;
   function save() { try { window.localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 
-  var R = { route: 'home', ask: '', lastTap: 0, map: null, layers: { gate: true, lesson: true, wudu: true, help: true }, day: {}, redraw: null };
+  var R = { route: 'home', ask: '', lastTap: 0, map: null, layers: { gate: true, lesson: true, wudu: true, help: true, library: true }, day: {}, redraw: null };
   var view = document.getElementById('view'), tabs = document.getElementById('tabs'), toastEl = document.getElementById('toast');
   var TOTAL = C.stages.length;
   var CHECK = '<svg class="ck" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   var PLAY = '<svg class="pl" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
-  var TABS_UMRAH = [['home', 'Home'], ['umrah', 'Umrah'], ['classes', 'Classes'], ['maps', 'Maps']];
-  var TABS_CLASSES = [['home', 'Home'], ['classes', 'Classes'], ['maps', 'Maps']];
-  var ROUTE = /^(home|prepare|prep-duas|prep-card|learn|perform|help|card|setup|maps|map-makkah|map-madinah|lessons-makkah|lessons-madinah|floors-makkah|plan|prep-docs|doc-\d+|count-tawaf|count-sai|duas|teacher-makkah-\d+|teacher-madinah-\d+|lesson-[a-z]+|read-\d+|stage-\d+|details-\d+|where-\d+|umrah|steps|help-[a-z]+)$/;
+  var TABS_UMRAH = [['home', 'Home'], ['umrah', 'Umrah'], ['classes', 'Classes'], ['maps', 'Maps'], ['settings', 'Settings']];
+  var TABS_CLASSES = [['home', 'Home'], ['classes', 'Classes'], ['maps', 'Maps'], ['settings', 'Settings']];
+  var ROUTE = /^(home|prepare|prep-duas|prep-card|learn|perform|help|card|setup|maps|map-makkah|map-madinah|lessons-makkah|lessons-madinah|floors-makkah|plan|prep-docs|doc-\d+|count-tawaf|count-sai|duas|teacher-makkah-\d+|teacher-madinah-\d+|lesson-[a-z]+|read-\d+|stage-\d+|details-\d+|where-\d+|umrah|steps|settings|help-[a-z]+)$/;
 
   /* ---------- small helpers ---------- */
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
@@ -236,7 +236,7 @@
   /* the Umrah screens fit themselves to three answers; a class visitor who opens one is asked for them */
   function askThree() { return S.gender && S.school && S.route ? '' : '<div class="card"><h3>Make the steps fit you</h3><p>Answer three short questions and the guide shows what applies to you.</p><button class="btn small" data-act="purpose-both">Answer them</button></div>'; }
   function vSetup() {
-    var h = top(S.setup ? 'Your details' : 'Assalamu alaykum', S.setup ? 'home' : '', S.setup ? 'Change any answer' : 'Welcome') + '<section class="pad">';
+    var h = top(S.setup ? 'Your details' : 'Assalamu alaykum', S.setup ? 'settings' : '', S.setup ? 'Change any answer' : 'Welcome') + '<section class="pad">';
     var pur = S.purpose || (S.setup ? 'both' : '');
     if (!S.setup) h += '<p class="lead">A few taps, so you only see what applies to you. You can change this at any time.</p>';
     if (!S.setup) h += '<p class="draft">' + esc(C.draftNote) + '</p>';
@@ -248,7 +248,6 @@
     h += '<label class="q" for="f-date">Date of my Umrah <span class="optn">optional</span></label><input type="date" id="f-date" value="' + esc(S.date) + '">';
     }
     h += '<button class="btn" data-act="setup-done">' + (S.setup ? 'Save' : 'Start') + '</button>';
-    if (S.setup) h += ask('erase', 'Erase everything on this phone', 'Erase your answers, checklist, dua list and hotel card?', 'Yes, erase');
     return h + '</section>';
   }
 
@@ -306,11 +305,15 @@
     var D = LES.masjid[e.m], t = D.teachers[e.x.t] || {};
     return '<button class="rowb haspic" data-go="lessons-' + e.m + '">' + face(e.m, e.x.t, 'face') + '<span class="ct"><small>' + CITY[e.m] + ' · ' + (e.on ? 'on now' : 'after ' + e.x.s.charAt(0).toUpperCase() + e.x.s.slice(1)) + '</small><b>' + esc(e.x.en || e.x.ar) + '</b><small>' + esc(t.en || t.ar || '') + '</small></span><span class="chev">›</span></button>';
   }
-  function homeTail(label) {
-    return '<div class="me"><div class="line"><p>' + esc(label) + '</p><button class="btn ghost small" data-go="setup">Change</button></div>' +
-      '<div class="line"><p>Text size</p><div class="sz">' + [0, 1, 2].map(function (i) {
-        return '<button class="s' + i + '" data-act="size" data-v="' + i + '" aria-pressed="' + (S.size === i) + '" aria-label="' + ['Normal text', 'Large text', 'Largest text'][i] + '">A</button>';
-      }).join('') + '</div></div></div>';
+  function vSettings() {
+    var h = top('Settings', '', 'Make it fit you') + '<section class="pad">';
+    h += '<div class="me"><div class="line"><p>' + esc(forClasses() ? 'Here for the classes' : details() || 'Not answered yet') + '</p><button class="btn ghost small" data-go="setup">Change</button></div></div>';
+    h += '<div class="me"><div class="line"><p>Text size</p><div class="sz">' + [0, 1, 2].map(function (i) {
+      return '<button class="s' + i + '" data-act="size" data-v="' + i + '" aria-pressed="' + (S.size === i) + '" aria-label="' + ['Normal text', 'Large text', 'Largest text'][i] + '">A</button>';
+    }).join('') + '</div></div></div>';
+    if (started()) h += resetAsk();
+    h += ask('erase', 'Erase everything on this phone', 'Erase your answers, checklist, dua list and hotel card?', 'Yes, erase');
+    return h + '<p class="credit">' + esc(C.draftNote) + '</p></section>';
   }
   function vHomeClasses() {
     var C2 = comingClasses(), e = C2.list[0], n = planCount();
@@ -328,7 +331,7 @@
     h += '<div class="tiles">' + tile('lessons-makkah', '01', 'Makkah', 'Timetable and calendar') + tile('lessons-madinah', '02', 'Madinah', 'Timetable and calendar') + tile('maps', '03', 'Maps', 'Class spots and gates') + tile('duas', '04', 'My duas', S.duas.length ? S.duas.filter(function (x) { return !x.done; }).length + ' still to make' : 'Write them here') + '</div>';
     h += '<button class="rowb solo" data-go="help"><span class="ct"><b>Help</b><small>What to do when something goes wrong</small></span><span class="chev">›</span></button>';
     h += '<button class="rowb solo" data-act="purpose-both"><span class="ct"><b>Performing Umrah too?</b><small>Add the Umrah guide to your home screen</small></span><span class="chev">›</span></button>';
-    return h + homeTail('Here for the classes') + '<p class="draft">' + esc(C.draftNote) + '</p></section>';
+    return h + '</section>';
   }
   function vHome() {
     if (forClasses()) return vHomeClasses();
@@ -359,11 +362,7 @@
       tile('prep-docs', '06', 'Documents', S.docs.length ? S.docs.length + ' saved' : 'Visa links and papers') + '</div>';
     h += '<button class="rowb solo" data-go="help"><span class="ct"><b>Help</b><small>What to do when something goes wrong</small></span><span class="chev">›</span></button>';
     if (S.purpose !== 'both') h += todayCard();
-    h += '<div class="me"><div class="line"><p>' + esc(details()) + '</p><button class="btn ghost small" data-go="setup">Change</button></div>' +
-      '<div class="line"><p>Text size</p><div class="sz">' + [0, 1, 2].map(function (i) {
-        return '<button class="s' + i + '" data-act="size" data-v="' + i + '" aria-pressed="' + (S.size === i) + '" aria-label="' + ['Normal text', 'Large text', 'Largest text'][i] + '">A</button>';
-      }).join('') + '</div></div></div>';
-    return h + '<p class="draft">' + esc(C.draftNote) + '</p></section>';
+    return h + '</section>';
   }
 
   /* ---------- prepare: checklist, dua list, hotel card ---------- */
@@ -705,13 +704,39 @@
   /* ---------- the two masajid: maps and lessons ---------- */
   var MAPS = window.UMRAH_MAPS || {}, LES = window.UMRAH_LESSONS || { masjid: {} };
   var CITY = { makkah: 'Makkah', madinah: 'Madinah' }, SPOT = { makkah: [21.4225, 39.8262], madinah: [24.4672, 39.6111] };
-  var LAYERS = [['gate', 'Gates'], ['lesson', 'Lessons'], ['wudu', 'Washrooms and wudu'], ['help', 'Help points']];
+  var LAYERS = [['gate', 'Gates'], ['lesson', 'Lessons'], ['wudu', 'Washrooms and wudu'], ['help', 'Help points'], ['library', 'Libraries']];
   var SLOTS = [['fajr', 'Fajr'], ['dhuhr', 'Dhuhr'], ['asr', 'Asr'], ['maghrib', 'Maghrib'], ['isha', 'Isha']];
-  var KIND = { gate: 'Gate', cg: 'Courtyard gate', wudu: 'Washroom', help: 'Help point', lesson: 'Lesson place', place: 'Place' };
+  var KIND = { gate: 'Gate', cg: 'Courtyard gate', wudu: 'Washroom', help: 'Help point', library: 'Library', lesson: 'Lesson place', place: 'Place' };
   var pinCache = {};
   var HIJRI = (function () { try { return new Intl.DateTimeFormat('en-u-ca-islamic-umalqura').resolvedOptions().calendar === 'islamic-umalqura'; } catch (e) { return false; } })();
 
   var INSIDE = window.UMRAH_INSIDE || {};
+  /* the two libraries: what is published about where they are. Sources differ, so the card says who says what. */
+  var LIBRARY = {
+    makkah: { n: 'Library of Masjid al-Haram', note: 'News reports place it on the second floor of the King Fahd expansion, near King Fahd Gate (79). No official page confirms this, so ask staff. This marker is approximate.' },
+    madinah: { n: 'Library of the Prophet’s Mosque', note: 'On the western side. The Ministry of Hajj page puts it on the roof, reached from Gate 11, open 8 am to 10 pm. A June 2026 news report says stairs 10, with research areas for women near Gates 24 and 12. Check on the day.' }
+  };
+  /* real photographs of one exact spot, shown only on that spot's card */
+  var SPOTPIC = {
+    makkah: { 'gate:1': ['spot-mak-g1'], 'library:': ['spot-mak-lib'] },
+    madinah: { 'gate:1': ['spot-mad-g1'], 'gate:3': ['spot-mad-g3'], 'gate:17': ['spot-mad-g17'], 'gate:18': ['spot-mad-g18'], 'gate:19': ['spot-mad-g19'], 'gate:20': ['spot-mad-g20'], 'gate:21': ['spot-mad-g21'], 'gate:22': ['spot-mad-g22'], 'gate:23': ['spot-mad-g23'], 'gate:32': ['spot-mad-g32'], 'gate:35': ['spot-mad-g35'], 'wudu:224': ['spot-mad-w224'], 'library:': ['spot-mad-lib', 'spot-mad-libroom'] }
+  };
+  /* one marker can stand for two neighbouring gates, so every number on it is looked up */
+  function spotNames(m, p) {
+    var T = SPOTPIC[m] || {}, refs = p.k === 'library' ? [''] : String(p.r || '').split(',');
+    return refs.reduce(function (out, r) { return out.concat(T[p.k + ':' + r.trim()] || []); }, []);
+  }
+  function spotPhotos(m, p) {
+    return spotNames(m, p).filter(hasPic).map(function (k) {
+      var c = MEDIA.photos[k];
+      return '<figure class="spotpic">' + pic(k, '', c.what) + '<figcaption><b>' + esc(c.what.replace(' (cropped)', '')) + '</b><small>Photo: ' + esc(c.by) + ', ' + esc(c.lic) + ', cropped</small></figcaption></figure>';
+    }).join('');
+  }
+  function libraryCard(m) {
+    var P = pinsOf(m), i = -1; P.forEach(function (p, k) { if (p.k === 'library') i = k; });
+    if (i < 0) return '';
+    return '<div class="card"><h3>Library</h3><div class="wcinfo">' + swatch('library') + '<p><b>' + esc(P[i].n) + '</b></p></div><button class="btn small" data-act="hotel-gate" data-m="' + m + '" data-i="' + i + '">Show on map and see details</button></div>';
+  }
   function pinsOf(m) {
     if (pinCache[m]) return pinCache[m];
     var M = MAPS[m], IG = INSIDE[m] || {}, L = (LES.masjid[m] || {}).places || {};
@@ -722,6 +747,10 @@
       var who = [], les = (LES.masjid[m] || {}).lessons || [];
       les.forEach(function (x) { if (x.p === id && who.indexOf(x.t) < 0) who.push(x.t); });
       out.push({ k: 'lesson', n: p.en || p.ar, a: p.ar, x: (p.lon - M.proj.lonW) * M.proj.kx, y: (M.proj.latN - p.lat) * M.proj.ky, z: 1, pid: id, near: p.near, floor: p.floor, who: who, img: who.length && MEDIA.teachers.indexOf(m + '-' + who[0]) >= 0 ? 't-' + m + '-' + who[0] + '.jpg' : '' });
+    });
+    out = out.map(function (p) {
+      if (p.k !== 'place' || !/^Library of/.test(p.n)) return p;
+      return { k: 'library', n: LIBRARY[m].n, a: p.a, x: p.x, y: p.y, z: 1, note: LIBRARY[m].note };
     });
     ((INSIDE[m] || {}).marks || []).forEach(function (k) { out.push({ k: 'place', n: k.n, s: k.s, x: k.x, y: k.y, z: k.z, note: k.note }); });
     return (pinCache[m] = out);
@@ -812,11 +841,11 @@
 
   /* the map */
   /* the four glossy map icons: defined once for the whole page, then used by the buttons and both maps */
-  var ICONS = '<defs><linearGradient id="ic-gGreen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#45C98C"/><stop offset="1" stop-color="#0D6B43"/></linearGradient><linearGradient id="ic-gGold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE9A3"/><stop offset=".55" stop-color="#E0B24A"/><stop offset="1" stop-color="#A8791C"/></linearGradient><linearGradient id="ic-gWood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C8864B"/><stop offset="1" stop-color="#7A471F"/></linearGradient><linearGradient id="ic-gPage" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#EBDDBB"/></linearGradient><radialGradient id="ic-gWater" cx=".36" cy=".52" r=".75"><stop offset="0" stop-color="#BDF0FF"/><stop offset=".45" stop-color="#37AEEA"/><stop offset="1" stop-color="#0A5D9E"/></radialGradient><radialGradient id="ic-gRed" cx=".38" cy=".3" r=".8"><stop offset="0" stop-color="#FF9C8A"/><stop offset=".5" stop-color="#E0432F"/><stop offset="1" stop-color="#8E1D10"/></radialGradient><symbol id="ic-gate" viewBox="0 0 64 64"><ellipse cx="33" cy="58" rx="26" ry="4" fill="#000" opacity=".16"/><path d="M10 56V30C10 17 24 12 32 5c8 7 22 12 22 25v26z" fill="#6E4C0C" transform="translate(3 1)"/><path d="M10 56V30C10 17 24 12 32 5c8 7 22 12 22 25v26z" fill="url(#ic-gGold)"/><path d="M17 56V32c0-9 10-13 15-18 5 5 15 9 15 18v24z" fill="url(#ic-gGreen)"/><path d="M32 15v41" stroke="#06422A" stroke-width="2"/><circle cx="28" cy="40" r="2.4" fill="url(#ic-gGold)"/><circle cx="36" cy="40" r="2.4" fill="url(#ic-gGold)"/><path d="M19 33c0-7 7-11 12-15v10c-5 2-9 5-12 11z" fill="#fff" opacity=".28"/><rect x="6" y="54" width="52" height="5" rx="2" fill="url(#ic-gGold)"/></symbol><symbol id="ic-lesson" viewBox="0 0 64 64"><ellipse cx="32" cy="59" rx="25" ry="3.6" fill="#000" opacity=".16"/><path d="M13 58 38 34l8 3-22 22zM51 58 26 34l-8 3 22 22z" fill="url(#ic-gWood)"/><path d="M3 17c11-6 22-4 29 3 7-7 18-9 29-3l-3 27c-10-4-19-3-26 3-7-6-16-7-26-3z" fill="#0D5C3A"/><path d="M7 14c10-5 19-2 25 4v24c-6-5-15-7-23-4z" fill="url(#ic-gPage)"/><path d="M57 14c-10-5-19-2-25 4v24c6-5 15-7 23-4z" fill="url(#ic-gPage)"/><path d="M12 20c6-1 11 0 15 3M13 26c5-1 10 0 14 3M14 32c5-1 9 0 13 3M52 20c-6-1-11 0-15 3M51 26c-5-1-10 0-14 3M50 32c-5-1-9 0-13 3" stroke="#B3955A" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M32 18v25" stroke="#C9A24B" stroke-width="2"/></symbol><linearGradient id="ic-gMen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3FA9F0"/><stop offset="1" stop-color="#0B568F"/></linearGradient><linearGradient id="ic-gWomen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C573C9"/><stop offset="1" stop-color="#6E2575"/></linearGradient><symbol id="ic-wudu" viewBox="0 0 64 64"><ellipse cx="33" cy="60" rx="24" ry="3.4" fill="#000" opacity=".16"/><rect x="6" y="6" width="54" height="54" rx="14" fill="#000" opacity=".28"/><rect x="3" y="3" width="54" height="54" rx="14" fill="url(#ic-gMen)"/><path d="M7 20C7 11 11 7 19 7h22c9 0 13 4 13 11-16-4-31-1-47 8z" fill="#fff" opacity=".2"/><g fill="#fff" transform="translate(-2 -3)"><g transform="translate(32 33) scale(.8) translate(-32 -33)"><circle cx="18" cy="17" r="5.6"/><path d="M12.5 24.5h11q3.5 0 3.5 3.5v13.5h-4V31h-1v22h-4.3V40.5h-1.4V53H12.7V31h-1v10.5h-4V28q0-3.5 3.5-3.5z"/><rect x="31" y="12" width="2.4" height="43" rx="1.2" opacity=".75"/><circle cx="47" cy="17" r="5.6"/><path d="M42.5 24.5h9l7.5 17-3.6 1.6-5.2-11.6h-.8L55.5 44h-4.3v9.5h-4.2V44h-1v9.5h-4.2V44H38.5 l4.4-12.5h-.8l-5.2 11.6-3.6-1.6z"/></g></g></symbol><symbol id="ic-wc-m" viewBox="0 0 64 64"><ellipse cx="33" cy="60" rx="24" ry="3.4" fill="#000" opacity=".16"/><rect x="6" y="6" width="54" height="54" rx="14" fill="#000" opacity=".28"/><rect x="3" y="3" width="54" height="54" rx="14" fill="url(#ic-gMen)"/><path d="M7 20C7 11 11 7 19 7h22c9 0 13 4 13 11-16-4-31-1-47 8z" fill="#fff" opacity=".2"/><g fill="#fff" transform="translate(-2 -3)"><circle cx="32" cy="17" r="5.6"/><path d="M26.5 24.5h11q3.5 0 3.5 3.5v13.5h-4V31h-1v22h-4.3V40.5h-1.4V53H26.7V31h-1v10.5h-4V28q0-3.5 3.5-3.5z"/></g></symbol><symbol id="ic-wc-f" viewBox="0 0 64 64"><ellipse cx="33" cy="60" rx="24" ry="3.4" fill="#000" opacity=".16"/><rect x="6" y="6" width="54" height="54" rx="14" fill="#000" opacity=".28"/><rect x="3" y="3" width="54" height="54" rx="14" fill="url(#ic-gWomen)"/><path d="M7 20C7 11 11 7 19 7h22c9 0 13 4 13 11-16-4-31-1-47 8z" fill="#fff" opacity=".2"/><g fill="#fff" transform="translate(-2 -3)"><circle cx="32" cy="17" r="5.6"/><path d="M27.5 24.5h9l7.5 17-3.6 1.6-5.2-11.6h-.8L40.5 44h-4.3v9.5h-4.2V44h-1v9.5h-4.2V44H23.5 l4.4-12.5h-.8l-5.2 11.6-3.6-1.6z"/></g></symbol><symbol id="ic-help" viewBox="0 0 64 64"><ellipse cx="32" cy="59" rx="20" ry="3.6" fill="#000" opacity=".16"/><circle cx="34" cy="31" r="25" fill="#6E1408"/><circle cx="31" cy="29" r="25" fill="url(#ic-gRed)"/><ellipse cx="26" cy="15" rx="13" ry="7" fill="#fff" opacity=".35" transform="rotate(-22 26 15)"/><circle cx="31" cy="18" r="4.6" fill="#fff"/><rect x="26.5" y="25.5" width="9" height="20" rx="4" fill="#fff"/></symbol></defs>';
+  var ICONS = '<defs><linearGradient id="ic-gGreen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#45C98C"/><stop offset="1" stop-color="#0D6B43"/></linearGradient><linearGradient id="ic-gGold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE9A3"/><stop offset=".55" stop-color="#E0B24A"/><stop offset="1" stop-color="#A8791C"/></linearGradient><linearGradient id="ic-gWood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C8864B"/><stop offset="1" stop-color="#7A471F"/></linearGradient><linearGradient id="ic-gPage" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#EBDDBB"/></linearGradient><radialGradient id="ic-gWater" cx=".36" cy=".52" r=".75"><stop offset="0" stop-color="#BDF0FF"/><stop offset=".45" stop-color="#37AEEA"/><stop offset="1" stop-color="#0A5D9E"/></radialGradient><radialGradient id="ic-gRed" cx=".38" cy=".3" r=".8"><stop offset="0" stop-color="#FF9C8A"/><stop offset=".5" stop-color="#E0432F"/><stop offset="1" stop-color="#8E1D10"/></radialGradient><symbol id="ic-gate" viewBox="0 0 64 64"><ellipse cx="33" cy="58" rx="26" ry="4" fill="#000" opacity=".16"/><path d="M10 56V30C10 17 24 12 32 5c8 7 22 12 22 25v26z" fill="#6E4C0C" transform="translate(3 1)"/><path d="M10 56V30C10 17 24 12 32 5c8 7 22 12 22 25v26z" fill="url(#ic-gGold)"/><path d="M17 56V32c0-9 10-13 15-18 5 5 15 9 15 18v24z" fill="url(#ic-gGreen)"/><path d="M32 15v41" stroke="#06422A" stroke-width="2"/><circle cx="28" cy="40" r="2.4" fill="url(#ic-gGold)"/><circle cx="36" cy="40" r="2.4" fill="url(#ic-gGold)"/><path d="M19 33c0-7 7-11 12-15v10c-5 2-9 5-12 11z" fill="#fff" opacity=".28"/><rect x="6" y="54" width="52" height="5" rx="2" fill="url(#ic-gGold)"/></symbol><symbol id="ic-lesson" viewBox="0 0 64 64"><ellipse cx="32" cy="59" rx="25" ry="3.6" fill="#000" opacity=".16"/><path d="M13 58 38 34l8 3-22 22zM51 58 26 34l-8 3 22 22z" fill="url(#ic-gWood)"/><path d="M3 17c11-6 22-4 29 3 7-7 18-9 29-3l-3 27c-10-4-19-3-26 3-7-6-16-7-26-3z" fill="#0D5C3A"/><path d="M7 14c10-5 19-2 25 4v24c-6-5-15-7-23-4z" fill="url(#ic-gPage)"/><path d="M57 14c-10-5-19-2-25 4v24c6-5 15-7 23-4z" fill="url(#ic-gPage)"/><path d="M12 20c6-1 11 0 15 3M13 26c5-1 10 0 14 3M14 32c5-1 9 0 13 3M52 20c-6-1-11 0-15 3M51 26c-5-1-10 0-14 3M50 32c-5-1-9 0-13 3" stroke="#B3955A" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M32 18v25" stroke="#C9A24B" stroke-width="2"/></symbol><linearGradient id="ic-gMen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3FA9F0"/><stop offset="1" stop-color="#0B568F"/></linearGradient><linearGradient id="ic-gWomen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C573C9"/><stop offset="1" stop-color="#6E2575"/></linearGradient><symbol id="ic-wudu" viewBox="0 0 64 64"><ellipse cx="33" cy="60" rx="24" ry="3.4" fill="#000" opacity=".16"/><rect x="6" y="6" width="54" height="54" rx="14" fill="#000" opacity=".28"/><rect x="3" y="3" width="54" height="54" rx="14" fill="url(#ic-gMen)"/><path d="M7 20C7 11 11 7 19 7h22c9 0 13 4 13 11-16-4-31-1-47 8z" fill="#fff" opacity=".2"/><g fill="#fff" transform="translate(-2 -3)"><g transform="translate(32 33) scale(.8) translate(-32 -33)"><circle cx="18" cy="17" r="5.6"/><path d="M12.5 24.5h11q3.5 0 3.5 3.5v13.5h-4V31h-1v22h-4.3V40.5h-1.4V53H12.7V31h-1v10.5h-4V28q0-3.5 3.5-3.5z"/><rect x="31" y="12" width="2.4" height="43" rx="1.2" opacity=".75"/><circle cx="47" cy="17" r="5.6"/><path d="M42.5 24.5h9l7.5 17-3.6 1.6-5.2-11.6h-.8L55.5 44h-4.3v9.5h-4.2V44h-1v9.5h-4.2V44H38.5 l4.4-12.5h-.8l-5.2 11.6-3.6-1.6z"/></g></g></symbol><symbol id="ic-wc-m" viewBox="0 0 64 64"><ellipse cx="33" cy="60" rx="24" ry="3.4" fill="#000" opacity=".16"/><rect x="6" y="6" width="54" height="54" rx="14" fill="#000" opacity=".28"/><rect x="3" y="3" width="54" height="54" rx="14" fill="url(#ic-gMen)"/><path d="M7 20C7 11 11 7 19 7h22c9 0 13 4 13 11-16-4-31-1-47 8z" fill="#fff" opacity=".2"/><g fill="#fff" transform="translate(-2 -3)"><circle cx="32" cy="17" r="5.6"/><path d="M26.5 24.5h11q3.5 0 3.5 3.5v13.5h-4V31h-1v22h-4.3V40.5h-1.4V53H26.7V31h-1v10.5h-4V28q0-3.5 3.5-3.5z"/></g></symbol><symbol id="ic-wc-f" viewBox="0 0 64 64"><ellipse cx="33" cy="60" rx="24" ry="3.4" fill="#000" opacity=".16"/><rect x="6" y="6" width="54" height="54" rx="14" fill="#000" opacity=".28"/><rect x="3" y="3" width="54" height="54" rx="14" fill="url(#ic-gWomen)"/><path d="M7 20C7 11 11 7 19 7h22c9 0 13 4 13 11-16-4-31-1-47 8z" fill="#fff" opacity=".2"/><g fill="#fff" transform="translate(-2 -3)"><circle cx="32" cy="17" r="5.6"/><path d="M27.5 24.5h9l7.5 17-3.6 1.6-5.2-11.6h-.8L40.5 44h-4.3v9.5h-4.2V44h-1v9.5h-4.2V44H23.5 l4.4-12.5h-.8l-5.2 11.6-3.6-1.6z"/></g></symbol><symbol id="ic-help" viewBox="0 0 64 64"><ellipse cx="32" cy="59" rx="20" ry="3.6" fill="#000" opacity=".16"/><circle cx="34" cy="31" r="25" fill="#6E1408"/><circle cx="31" cy="29" r="25" fill="url(#ic-gRed)"/><ellipse cx="26" cy="15" rx="13" ry="7" fill="#fff" opacity=".35" transform="rotate(-22 26 15)"/><circle cx="31" cy="18" r="4.6" fill="#fff"/><rect x="26.5" y="25.5" width="9" height="20" rx="4" fill="#fff"/></symbol><symbol id="ic-library" viewBox="0 0 64 64"><ellipse cx="33" cy="59" rx="26" ry="3.6" fill="#000" opacity=".16"/><rect x="10" y="42" width="47" height="14" rx="3" fill="#0A4C31"/><rect x="7" y="39" width="47" height="14" rx="3" fill="url(#ic-gGreen)"/><rect x="43" y="41" width="9" height="10" fill="url(#ic-gPage)"/><rect x="13" y="28" width="44" height="12" rx="3" fill="#6E4C0C"/><rect x="10" y="26" width="44" height="12" rx="3" fill="url(#ic-gGold)"/><rect x="13" y="28" width="8" height="8" fill="url(#ic-gPage)"/><rect x="16" y="14" width="38" height="12" rx="3" fill="#4F2D12"/><rect x="13" y="12" width="38" height="12" rx="3" fill="url(#ic-gWood)"/><rect x="41" y="14" width="8" height="8" fill="url(#ic-gPage)"/><path d="M16 14h20M13 28h18M10 41h22" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".35"/></symbol></defs>';
   document.body.insertAdjacentHTML('beforeend', '<svg class="sprite" width="0" height="0" aria-hidden="true">' + ICONS + '</svg>');
   function pinsSVG(m, px) {
     var M = MAPS[m], st = R.map, v = Math.max(M.w, M.h) / st.k, u = v / px, P = pinsOf(m), h = '', x0 = st.cx - v / 2, y0 = st.cy - v / 2;
-    var rank = { lesson: 0, gate: 1, place: 2, wudu: 3, help: 4, cg: 5 }, zrank = { cg: 0, help: 1, wudu: 2, gate: 3, lesson: 4, place: 5 }, kept = [];
+    var rank = { lesson: 0, library: 0.5, gate: 1, place: 2, wudu: 3, help: 4, cg: 5 }, zrank = { cg: 0, help: 1, wudu: 2, gate: 3, library: 3.5, lesson: 4, place: 5 }, kept = [];
     function n(a) { return (a * u).toFixed(2); }
     function t(x, y, size, cls, txt, halo) {
       return '<text class="' + cls + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" font-size="' + n(size) + '"' + (halo ? ' stroke-width="' + n(3) + '"' : '') + ' text-anchor="middle" dominant-baseline="central">' + esc(txt) + '</text>';
@@ -850,6 +879,7 @@
       else if (p.k === 'cg') g += '<circle class="p-cg" cx="' + x + '" cy="' + y + '" r="' + n(9) + '" stroke-width="' + n(1.5) + '"/>' + t(x, y, 7, 't-cg', num);
       else if (p.k === 'wudu') g += icon(p.g ? 'wc-' + p.g : 'wudu', x, y, 25) + (num ? '<rect class="p-wcno" x="' + (x - 11 * u).toFixed(1) + '" y="' + (y + 11 * u).toFixed(1) + '" width="' + n(22) + '" height="' + n(11) + '" rx="' + n(5.5) + '"/>' + t(x, y + 16.5 * u, 8, 't-wcno', num) : '');
       else if (p.k === 'help') g += icon('help', x, y, 22);
+      else if (p.k === 'library') g += icon('library', x, y, 28);
       else if (p.k === 'lesson' && p.img) g += '<circle class="p-lesson" cx="' + x + '" cy="' + y + '" r="' + n(15) + '" stroke-width="' + n(2) + '"/><image href="' + p.img + '" x="' + (x - 13 * u).toFixed(1) + '" y="' + (y - 13 * u).toFixed(1) + '" width="' + n(26) + '" height="' + n(26) + '" preserveAspectRatio="xMidYMid slice" clip-path="circle(50%)"/>';
       else if (p.k === 'lesson') g += icon('lesson', x, y, 30);
       else g += '<circle class="p-place" cx="' + x + '" cy="' + y + '" r="' + n(p.big ? 3 : 4) + '"/>';
@@ -905,6 +935,7 @@
     var h = '<div class="card"><div class="sh"><span class="lab plain">' + KIND[p.k] + (p.r && p.k !== 'wudu' ? ' ' + esc(p.r) : '') + '</span></div><h3>' + esc(p.n) + '</h3>' + (p.a ? '<p class="ar2" lang="ar" dir="rtl">' + esc(p.a) + '</p>' : '');
     if (p.k === 'wudu') h += '<div class="wcinfo">' + swatch(p.g ? 'wc-' + p.g : 'wudu') + '<dl><dt>Number</dt><dd>' + esc(p.r || 'Not on the map') + '</dd><dt>For</dt><dd>' + (p.g === 'm' ? 'Men' : p.g === 'f' ? 'Women' : 'Check the sign') + '</dd></dl></div>';
     if (p.note) h += '<p>' + esc(p.note) + '</p>';
+    h += spotPhotos(st.m, p);
     if (p.k === 'lesson') {
       h += '<p>' + esc([p.floor, p.near ? 'Near ' + p.near : ''].filter(Boolean).join('. ')) + '. This marker was placed by hand from the written description, so look for the teacher’s chair nearby.</p>';
       if (p.who && p.who.length) h += '<div class="faces">' + p.who.map(function (id) { var t = (LES.masjid[m].teachers[id] || {}); return '<button class="who2" data-go="teacher-' + m + '-' + esc(id) + '">' + face(m, id) + '<span class="ct"><b>' + esc(t.en || t.ar || '') + '</b></span></button>'; }).join('') + '</div>';
@@ -1035,6 +1066,7 @@
     h += '<div id="pininfo">' + pinInfo(m) + '</div>';
     h += '<div class="two"><button class="btn ghost small" data-act="zoom" data-v="0">Reset the view</button>' + (d3 ? '<button class="btn ghost small" data-act="tilt">' + (R.topView ? 'Angled view' : 'Top view') + '</button><button class="btn ghost small" data-act="inside">See inside</button>' : '') + '</div>';
     h += '<div class="chips">' + LAYERS.map(function (l) { return '<button class="chip" data-act="layer" data-k="' + l[0] + '" aria-pressed="' + !!R.layers[l[0]] + '">' + swatch(l[0]) + l[1] + '</button>'; }).join('') + '</div>';
+    h += libraryCard(m);
     h += '<div id="gpsbox">' + gpsHTML(m) + '</div>';
     h += '<div class="card"><h3>Which gate?</h3><div class="addrow"><input type="text" inputmode="numeric" id="gate-in" maxlength="12" placeholder="79" aria-label="Gate number"><button class="btn small" data-act="find-gate">Find gate</button></div><button class="btn ghost small wide" data-act="at-gate">I’m at this gate</button></div>';
     h += '<a class="btn ghost small" href="https://alharamain.gov.sa/public/?page=interactive_maps_ar" target="_blank" rel="noopener">Official live map (may work only in Saudi Arabia)</a>';
@@ -1434,6 +1466,7 @@
     else if (r === 'floors-makkah') { h = vFloors(); tab = 'maps'; }
     else if (r === 'plan') { h = vPlan(); tab = 'maps'; }
     else if (r.indexOf('teacher-') === 0) { h = vTeacher(r.split('-')[1], r.split('-')[2]); tab = 'maps'; }
+    else if (r === 'settings') { h = vSettings(); tab = 'settings'; }
     else if (r === 'help') { h = vHelp(); tab = 'help'; }
     else if (r.indexOf('help-') === 0) { h = vHelpItem(r.slice(5)); tab = 'help'; }
     else if (r === 'card') { h = vCard(); tab = 'help'; }
