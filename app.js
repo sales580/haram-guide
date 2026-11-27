@@ -1,0 +1,1218 @@
+/* Haram Guide (first called Umrah Companion): screens and behaviour. Every word of guidance lives in content.js.
+   Routes are plain names (#home, #stage-5, #count-tawaf) so they also work inside the private preview page. */
+(function () {
+  'use strict';
+  var C = window.UMRAH_CONTENT, ENV = window.UMRAH_ENV || {};
+  var KEY = 'umrahCompanion.v1';
+  var DEF = { setup: false, gender: '', school: '', route: '', date: '', size: 0, checks: {}, read: {}, done: {}, tawaf: 0, sai: 0, duas: [], card: {}, masjid: '', mapMode: '3d', plan: {}, lang: '' };
+  function fresh() { return JSON.parse(JSON.stringify(DEF)); }
+
+  /* Everything the pilgrim enters stays on this phone (localStorage). Nothing is sent anywhere. */
+  var S = fresh();
+  try {
+    var raw = window.localStorage.getItem(KEY);
+    if (raw) {
+      var o = JSON.parse(raw) || {};
+      Object.keys(DEF).forEach(function (k) {
+        if (o[k] != null && typeof o[k] === typeof DEF[k] && Array.isArray(o[k]) === Array.isArray(DEF[k])) S[k] = o[k];
+      });
+    }
+  } catch (e) { S = fresh(); }
+  function save() { try { window.localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+  var R = { route: 'home', ask: '', lastTap: 0, map: null, layers: { gate: true, lesson: true, wudu: true, help: true }, day: {}, redraw: null };
+  var view = document.getElementById('view'), tabs = document.getElementById('tabs'), toastEl = document.getElementById('toast');
+  var TOTAL = C.stages.length;
+  var CHECK = '<svg class="ck" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  var PLAY = '<svg class="pl" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+  var TABS = [['home', 'Home'], ['prepare', 'Prepare'], ['learn', 'Learn'], ['perform', 'Perform'], ['maps', 'Maps'], ['help', 'Help']];
+  var ROUTE = /^(home|prepare|prep-duas|prep-card|learn|perform|help|card|setup|maps|map-makkah|map-madinah|lessons-makkah|lessons-madinah|plan|count-tawaf|count-sai|duas|teacher-makkah-\d+|teacher-madinah-\d+|lesson-[a-z]+|read-\d+|stage-\d+|help-[a-z]+)$/;
+
+  /* ---------- small helpers ---------- */
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+  function stage(n) { for (var i = 0; i < C.stages.length; i++) if (C.stages[i].id === n) return C.stages[i]; return null; }
+  function forMe(x) { return !x.who || !S.gender || x.who === S.gender; }
+  function chkItems() { var out = []; C.checklist.forEach(function (g) { g.items.forEach(function (it) { if (forMe(it)) out.push(it); }); }); return out; }
+  function lessonKeys() { return ['intro'].concat(C.stages.map(function (s) { return 's' + s.id; }), ['words', 'women']); }
+  function doneCount() { return C.stages.filter(function (s) { return S.done[s.id]; }).length; }
+  function nextStage() { for (var i = 0; i < C.stages.length; i++) if (!S.done[C.stages[i].id]) return C.stages[i].id; return 0; }
+  function daysLeft() {
+    var p = String(S.date || '').split('-'); if (p.length !== 3) return null;
+    var d = new Date(+p[0], +p[1] - 1, +p[2]), n = new Date(), t = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+    return isNaN(d) ? null : Math.round((d - t) / 86400000);
+  }
+  function labelOf(s) { var l = s.l; if (l && typeof l === 'object') l = l[S.school || 'unsure'] || l.unsure; return l || 'tip'; }
+  function noteOf(x) { if (!x.sch) return ''; var k = S.school; return (k && k !== 'unsure') ? (x.sch[k] || '') : (x.sch.all || ''); }
+  function visible(s) { return forMe(s) && (!s.onlyRoute || s.onlyRoute.indexOf(S.route) >= 0); }
+  function details() { return [S.gender === 'm' ? 'Man' : 'Woman', C.schools[S.school], C.routes[S.route]].filter(Boolean).join(' · '); }
+  function pairs(o) { return Object.keys(o).map(function (k) { return [k, o[k]]; }); }
+  function toast(m) { toastEl.textContent = m; toastEl.className = 'show'; clearTimeout(toast.t); toast.t = setTimeout(function () { toastEl.className = ''; }, 2800); }
+  function buzz(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
+
+  /* ---------- pictures: real photographs of the places, and the teachers' official portraits ---------- */
+  var MEDIA = window.UMRAH_MEDIA || { photos: {}, teachers: [], basemap: {} };
+  var STAGE_PIC = { 1: 'ihram', 2: 'miqat', 4: 'gate', 5: 'kaaba', 6: 'maqam', 7: 'zamzam', 8: 'safa' };
+  var STEP_PIC = { 'Start at the Black Stone': 'blackstone', 'Between the Yemeni corner and the Black Stone': 'yemeni', 'Walk towards Maqam Ibrahim': 'maqam',
+    'On Safa': 'safa', 'On Marwah': 'marwah', 'Jog between the green lights': 'masaa', 'Between the green lights': 'masaa', 'Wear the two ihram cloths': 'ihram', 'Drink Zamzam water': 'zamzam' };
+  var CUR_PIC = '';
+  function hasPic(n) { return !!(n && MEDIA.photos[n]); }
+  function pic(n, cls, alt) {
+    return hasPic(n) ? '<img class="' + cls + '" src="p-' + n + '.jpg" alt="' + esc(alt || MEDIA.photos[n].what || '') + '" loading="lazy">' : '';
+  }
+  function face(m, id, cls) {
+    return MEDIA.teachers.indexOf(m + '-' + id) >= 0 ? '<img class="' + (cls || 'face') + '" src="t-' + m + '-' + id + '.jpg" alt="" loading="lazy">' : '<span class="' + (cls || 'face') + ' none"></span>';
+  }
+
+  /* ---------- shared pieces ---------- */
+  function top(title, back, sub) {
+    return '<header class="top">' + (back ? '<button class="back" data-go="' + back + '">‹ Back</button>' : '') +
+      '<h1>' + esc(title) + '</h1>' + (sub ? '<p>' + esc(sub) + '</p>' : '') + '</header>';
+  }
+  function chk(on, t, n, attrs) {
+    return '<button class="chk" role="checkbox" aria-checked="' + on + '" ' + attrs + '><span class="box">' + (on ? CHECK : '') + '</span>' +
+      '<span class="ct"><b>' + esc(t) + '</b>' + (n ? '<small>' + esc(n) + '</small>' : '') + '</span></button>';
+  }
+  function ask(key, label, question, yes) {
+    if (R.ask !== key) return '<button class="btn ghost" data-act="ask" data-k="' + key + '">' + esc(label) + '</button>';
+    return '<div class="card"><h3>' + esc(question) + '</h3><div class="two"><button class="btn ghost" data-act="ask" data-k="">No</button>' +
+      '<button class="btn" data-act="yes" data-k="' + key + '">' + esc(yes) + '</button></div></div>';
+  }
+  function duaHTML(k) {
+    var d = C.duas[k]; if (!d) return '';
+    return '<div class="dua"><p class="ar" lang="ar" dir="rtl">' + esc(d.ar) + '</p><p class="tr">' + esc(d.tr) + '</p><p class="en">' + esc(d.en) + '</p>' +
+      '<div class="df"><button class="listen" data-act="listen">' + PLAY + 'Listen</button><span class="src">' + esc(d.src) + '</span></div></div>';
+  }
+  function stepHTML(s) {
+    var l = labelOf(s), txt = s.route ? (s.route[S.route] || s.route.road) : s.t, note = noteOf(s);
+    var src = s.routeSrc ? (s.routeSrc[S.route] || s.routeSrc.road) : s.src;
+    return '<article class="step"><div class="sh"><span class="lab ' + l + '">' + esc(C.labels[l]) + '</span>' +
+      (s.who ? '<span class="who">' + (s.who === 'm' ? 'For men' : 'For women') + '</span>' : '') + '</div>' +
+      '<h3>' + esc(s.h) + '</h3>' + (STEP_PIC[s.h] && STEP_PIC[s.h] !== CUR_PIC ? pic(STEP_PIC[s.h], 'steppic', s.h) : '') + (txt ? '<p>' + esc(txt) + '</p>' : '') + (s.dua ? duaHTML(s.dua) : '') +
+      (note ? '<p class="sn">' + esc(note) + '</p>' : '') + (src ? '<p class="src">Source: ' + esc(src) + '</p>' : '') + '</article>';
+  }
+  function legend() {
+    return '<div class="legend">' + C.legend.map(function (x) { return '<div><span class="lab ' + x[0] + '">' + esc(C.labels[x[0]]) + '</span><span>' + esc(x[1]) + '</span></div>'; }).join('') + '</div>';
+  }
+  function segs(n) {
+    return '<div class="segs" aria-hidden="true">' + C.stages.map(function (s) { return '<i class="' + (S.done[s.id] ? 'd' : '') + (s.id === n ? ' c' : '') + '"></i>'; }).join('') + '</div>';
+  }
+  function myDuas() {
+    var open = S.duas.filter(function (d) { return !d.done; });
+    if (!open.length) return '';
+    return '<div class="card"><h3>My dua list</h3><ul class="plain">' + open.map(function (d) { return '<li>' + esc(d.t) + '</li>'; }).join('') + '</ul></div>';
+  }
+
+  /* ---------- the two plans: solid shapes, labels in words ---------- */
+  /* ---------- route maps: each one is drawn on the real map of the Masjid, so the shapes and distances are true ---------- */
+  var KB = { c: [661.1, 727.4], stone: [668.9, 729.7], yemeni: [660.5, 735.4], hijr: [655.6, 717.6], maqam: [674.6, 720.7], light: [729.5, 752.8], safa: [790.7, 806.9], marwah: [759.6, 433.3] };
+  function f1(v) { return (+v).toFixed(1); }
+  function rmap(box, label, inner, bar) {
+    var dark = isDark(), c = dark ? PAL.night : PAL.day, u = box[2] / 100, x = box[0], y = box[1], w = box[2], h = box[3];
+    var by = y + h - 5 * u, bx = x + 5 * u;
+    return '<svg class="rmap" viewBox="' + box.join(' ') + '" role="img" aria-label="' + esc(label) + '">' +
+      '<defs><marker id="rm-a" markerWidth="4.4" markerHeight="4.4" refX="2.6" refY="2.2" orient="auto"><path d="M0 0L4.4 2.2L0 4.4Z" fill="' + c.gold + '"/></marker>' +
+      '<marker id="rm-b" markerWidth="4.4" markerHeight="4.4" refX="2.6" refY="2.2" orient="auto"><path d="M0 0L4.4 2.2L0 4.4Z" fill="' + (dark ? '#7FCBA2' : '#1B5A43') + '"/></marker></defs>' +
+      baseSVG('makkah', dark) + '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="' + c.land + '" fill-opacity="0.22"/>' + inner(u, c, dark) +
+      '<g font-family="Inter, Arial, sans-serif" font-weight="700" font-size="' + f1(3 * u) + '" fill="' + c.text + '" stroke="' + c.halo + '" stroke-width="' + f1(0.9 * u) + '" paint-order="stroke" stroke-linejoin="round">' +
+      '<path d="M' + f1(bx) + ' ' + f1(by) + 'h' + bar + '" fill="none" stroke="' + c.text + '" stroke-width="' + f1(0.7 * u) + '" paint-order="normal"/><text x="' + f1(bx + bar / 2) + '" y="' + f1(by - 2.2 * u) + '" text-anchor="middle">' + bar + ' m</text>' +
+      '<text x="' + f1(x + w - 6 * u) + '" y="' + f1(y + 8.5 * u) + '" text-anchor="middle">N</text><path d="M' + f1(x + w - 6 * u) + ' ' + f1(y + 2 * u) + 'l' + f1(1.6 * u) + ' ' + f1(3 * u) + 'h' + f1(-3.2 * u) + 'Z" fill="' + c.text + '" stroke="none"/></g></svg>';
+  }
+  function medal(x, y, n, u, c) {
+    return '<circle cx="' + f1(x) + '" cy="' + f1(y) + '" r="' + f1(4.3 * u) + '" fill="' + c.halo + '"/><circle cx="' + f1(x) + '" cy="' + f1(y) + '" r="' + f1(3.6 * u) + '" fill="' + c.gold + '"/><circle cx="' + f1(x) + '" cy="' + f1(y) + '" r="' + f1(2.9 * u) + '" fill="none" stroke="' + c.halo + '" stroke-width="' + f1(0.3 * u) + '"/>' +
+      '<text x="' + f1(x) + '" y="' + f1(y) + '" font-family="Inter, Arial, sans-serif" font-weight="700" font-size="' + f1(3.9 * u) + '" text-anchor="middle" dominant-baseline="central" fill="' + (c === PAL.night ? '#06140E' : '#FFFFFF') + '">' + n + '</text>';
+  }
+  function tag(x, y, t, u, c, anchor, small) {
+    return '<text x="' + f1(x) + '" y="' + f1(y) + '" font-family="Marcellus, Georgia, serif" font-size="' + f1((small ? 3.5 : 4.4) * u) + '" text-anchor="' + (anchor || 'middle') + '" dominant-baseline="central" fill="' + (c === PAL.night ? '#F4EFE2' : '#16261F') + '" stroke="' + c.halo + '" stroke-width="' + f1(1.1 * u) + '" stroke-linejoin="round" paint-order="stroke">' + esc(t) + '</text>';
+  }
+  function way(d, u, c, col, mk, dash) {
+    return '<path d="' + d + '" fill="none" stroke="' + c.halo + '" stroke-width="' + f1(2.6 * u) + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<path d="' + d + '" fill="none" stroke="' + (col || c.gold) + '" stroke-width="' + f1(1.25 * u) + '" stroke-linecap="round" stroke-linejoin="round"' + (dash ? ' stroke-dasharray="' + f1(0.2 * u) + ' ' + f1(2.6 * u) + '"' : '') + (mk ? ' marker-end="url(#' + mk + ')"' : '') + '/>';
+  }
+  function stops(list) {
+    return '<ol class="stops">' + list.map(function (s) {
+      var body = '<span class="sn">' + s[0] + '</span><span class="ct"><b>' + esc(s[1]) + '</b><small>' + esc(s[2]) + '</small></span>' + (s[3] ? pic(s[3], 'sp', s[1]) : '');
+      return s[4] ? '<li><button class="stopb" data-go="' + s[4] + '">' + body + '</button></li>' : '<li>' + body + '</li>';
+    }).join('') + '</ol>';
+  }
+  function tawafRing(u, c, r) {
+    /* around the Ka'bah with it on your left: on a map with north at the top that is east, north, west, south */
+    var k = KB.c, a0 = Math.atan2(KB.stone[1] - k[1], KB.stone[0] - k[0]), h = '', i;
+    for (i = 0; i < 4; i++) {
+      var a = a0 - i * Math.PI / 2, b = a - Math.PI / 2 + 0.16;
+      h += way('M' + f1(k[0] + r * Math.cos(a)) + ' ' + f1(k[1] + r * Math.sin(a)) + 'A' + r + ' ' + r + ' 0 0 0 ' + f1(k[0] + r * Math.cos(b)) + ' ' + f1(k[1] + r * Math.sin(b)), u, c, null, 'rm-a');
+    }
+    return h;
+  }
+  var PLAN = {
+    tawaf: function () {
+      var S4 = [[1, KB.stone, 'Black Stone'], [2, KB.maqam, 'Maqam Ibrahim'], [3, KB.hijr, 'The Hijr'], [4, KB.yemeni, 'Yemeni corner']];
+      return rmap([576, 642, 170, 170], 'Map of tawaf around the Ka‘bah, with the start line at the Black Stone corner and four places to know.', function (u, c, dark) {
+        var k = KB.c, dx = KB.light[0] - KB.stone[0], dy = KB.light[1] - KB.stone[1], L = Math.hypot(dx, dy), ex = KB.stone[0] + dx / L * 60, ey = KB.stone[1] + dy / L * 60, green = dark ? '#7FCBA2' : '#1B5A43';
+        var h = '<circle cx="' + k[0] + '" cy="' + k[1] + '" r="36" fill="' + c.gold + '" fill-opacity="0.10"/>' + tawafRing(u, c, 36);
+        h += way('M' + f1(KB.stone[0]) + ' ' + f1(KB.stone[1]) + 'L' + f1(ex) + ' ' + f1(ey), u, c, green, '', true) + tag(ex + 2 * u, ey + 5 * u, 'Start line', u, c, 'middle', true);
+        S4.forEach(function (s) {
+          var a = Math.atan2(s[1][1] - k[1], s[1][0] - k[0]) + (s[0] === 1 ? 0.5 : s[0] === 2 ? -0.25 : 0), mx = k[0] + 57 * Math.cos(a), my = k[1] + 57 * Math.sin(a);
+          h += '<path d="M' + f1(s[1][0]) + ' ' + f1(s[1][1]) + 'L' + f1(mx) + ' ' + f1(my) + '" stroke="' + c.halo + '" stroke-width="' + f1(1.3 * u) + '"/><path d="M' + f1(s[1][0]) + ' ' + f1(s[1][1]) + 'L' + f1(mx) + ' ' + f1(my) + '" stroke="' + c.gold + '" stroke-width="' + f1(0.5 * u) + '"/>' +
+            '<circle cx="' + f1(s[1][0]) + '" cy="' + f1(s[1][1]) + '" r="' + f1(1.1 * u) + '" fill="' + c.gold + '" stroke="' + c.halo + '" stroke-width="' + f1(0.4 * u) + '"/>' + medal(mx, my, s[0], u, c) +
+            tag(mx, my + (Math.sin(a) < -0.3 ? -7 : 7.4) * u, s[2], u, c, 'middle', true);
+        });
+        return h + tag(k[0] - 46, k[1] + 62, 'Mataf', u, c, 'middle', true);
+      }, 20) + stops([
+        [1, 'The Black Stone corner', 'Every round starts and ends level with this corner. A green light on the wall of the Masjid, far behind it, marks the same line.', 'blackstone'],
+        [2, 'Maqam Ibrahim', 'The gold and glass case a few steps from the door of the Ka‘bah. The crowd flows around it.', 'maqam'],
+        [3, 'The Hijr', 'The low curved wall beside the Ka‘bah. Walk around the outside of it.', ''],
+        [4, 'The Yemeni corner', 'The last corner before the Black Stone.', 'yemeni']]);
+    },
+    sai: function () {
+      return rmap([610, 388, 250, 462], 'Map of sa‘i. Laps go from Safa north to Marwah and back. The green lights are nearer to Safa.', function (u, c, dark) {
+        var a = KB.safa, b = KB.marwah, dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy), nx = -dy / L, ny = dx / L, o = 7, green = dark ? '#7FCBA2' : '#1B5A43';
+        function at(t, off) { return [a[0] + dx * t + nx * off, a[1] + dy * t + ny * off]; }
+        function seg(t0, t1, off) { var p = at(t0, off), q = at(t1, off); return 'M' + f1(p[0]) + ' ' + f1(p[1]) + 'L' + f1(q[0]) + ' ' + f1(q[1]); }
+        var g0 = at(0.2, -15), g1 = at(0.345, -15), g2 = at(0.345, 15), g3 = at(0.2, 15), mid = at(0.27, 0), up = at(0.66, -o - 3), dn = at(0.66, o + 3);
+        var h = '<path d="M' + [g0, g1, g2, g3].map(function (p) { return f1(p[0]) + ' ' + f1(p[1]); }).join('L') + 'Z" fill="' + green + '" fill-opacity="0.34" stroke="' + green + '" stroke-width="' + f1(0.5 * u) + '"/>';
+        h += way(seg(0.04, 0.95, -o), u, c, null, 'rm-a') + way(seg(0.96, 0.05, o), u, c, green, 'rm-b');
+        h += medal(a[0], a[1] + 6 * u, 1, u, c) + tag(a[0], a[1] + 13.5 * u, 'Safa', u, c) + medal(mid[0] + 25, mid[1], 2, u, c) + tag(mid[0] + 25, mid[1] + 7.6 * u, 'Green lights', u, c, 'middle', true) +
+          medal(b[0], b[1] - 6 * u, 3, u, c) + tag(b[0], b[1] - 13.5 * u, 'Marwah', u, c);
+        h += tag(up[0] - 3, up[1], 'Laps 1, 3, 5, 7', u, c, 'end', true) + tag(dn[0] + 3, dn[1] + 22, 'Laps 2, 4, 6', u, c, 'start', true);
+        return h + tag(KB.c[0], KB.c[1] + 16, 'Ka‘bah', u, c, 'middle', true) + tag(650, 600, 'Masjid al-Haram', u, c, 'middle', true);
+      }, 50) + stops([
+        [1, 'Safa', 'Start here. The bare rock of the hill is kept behind a rail at the south end of the long hall.', 'safa'],
+        [2, 'The green lights', 'Green lights on the ceiling and walls mark this stretch. Its place on this map is approximate.', 'masaa'],
+        [3, 'Marwah', 'The north end. Lap one ends here, and so does lap seven.', 'marwah']]);
+    },
+    enter: function () {
+      return rmap([398, 382, 460, 528], 'Map of Masjid al-Haram with its main gates and the mataf in the middle.', function (u, c, dark) {
+        var h = '', k = KB.c, named = { '1': [0, 6.2, 'middle'], '79': [-3, -6.2, 'start'], '40': [0, -6.2, 'middle'], '25': [-4.5, 0, 'end'] };
+        pinsOf('makkah').forEach(function (p) {
+          if (p.k !== 'gate' || (p.z || 1) !== 1) return;
+          var n = String(p.r).split(',')[0], nm = named[n];
+          if (nm) { var dx = k[0] - p.x, dy = k[1] - p.y, L = Math.hypot(dx, dy); h += way('M' + f1(p.x + dx / L * 14) + ' ' + f1(p.y + dy / L * 14) + 'L' + f1(k[0] - dx / L * 50) + ' ' + f1(k[1] - dy / L * 50), u, c, null, 'rm-a', true); }
+        });
+        h += '<circle cx="' + k[0] + '" cy="' + k[1] + '" r="40" fill="' + c.gold + '" fill-opacity="0.14" stroke="' + c.gold + '" stroke-width="' + f1(0.5 * u) + '"/>' + tag(k[0], k[1] + 26, 'Mataf', u, c, 'middle', true);
+        pinsOf('makkah').forEach(function (p) {
+          if (p.k !== 'gate' || (p.z || 1) !== 1) return;
+          var n = String(p.r).split(',')[0], nm = named[n];
+          h += '<circle cx="' + p.x + '" cy="' + p.y + '" r="' + f1(2.9 * u) + '" fill="' + (dark ? '#7FCBA2' : '#1B5A43') + '" stroke="' + c.halo + '" stroke-width="' + f1(0.5 * u) + '"/><text x="' + p.x + '" y="' + p.y + '" font-family="Inter, Arial, sans-serif" font-weight="700" font-size="' + f1((n.length > 1 ? 2.9 : 3.4) * u) + '" text-anchor="middle" dominant-baseline="central" fill="' + (dark ? '#06140E' : '#FFFFFF') + '">' + esc(n) + '</text>';
+          if (nm) h += tag(p.x + nm[0] * u, p.y + nm[1] * u, p.n, u, c, nm[2], true);
+        });
+        return h;
+      }, 100) + stops([
+        ['1', 'King Abdulaziz Gate', 'On the south side, facing the Clock Tower.', 'gate'],
+        ['79', 'King Fahd Gate', 'On the west side, the way in from the King Fahd expansion.', ''],
+        ['40', 'Umrah Gate', 'On the north-west side.', ''],
+        ['25', 'Marwah Gate', 'At the north end of the mas‘a, where sa‘i finishes.', '']]);
+    },
+    journey: function () {
+      return rmap([398, 382, 460, 528], 'Map of the whole Umrah inside Masjid al-Haram: in through a gate, tawaf, two rak‘ahs, then sa‘i from Safa to Marwah.', function (u, c, dark) {
+        var k = KB.c, g = [626.0, 890.4], h = '';
+        h += way('M' + f1(g[0]) + ' ' + f1(g[1] - 14) + 'L' + f1(k[0] - 8) + ' ' + f1(k[1] + 46), u, c, null, 'rm-a', true);
+        h += '<circle cx="' + k[0] + '" cy="' + k[1] + '" r="34" fill="' + c.gold + '" fill-opacity="0.12"/>' + tawafRing(u * 0.8, c, 34);
+        h += way('M' + f1(k[0] + 40) + ' ' + f1(k[1] + 22) + 'L' + f1(KB.safa[0] - 16) + ' ' + f1(KB.safa[1] - 8), u, c, null, 'rm-a', true);
+        h += way('M' + f1(KB.safa[0] - 4) + ' ' + f1(KB.safa[1] - 16) + 'L' + f1(KB.marwah[0] + 1) + ' ' + f1(KB.marwah[1] + 20), u, c, null, 'rm-a');
+        h += medal(g[0], g[1], 4, u, c) + tag(g[0], g[1] + 7.4 * u, 'Enter', u, c, 'middle', true) + medal(k[0] - 60, k[1], 5, u, c) + tag(k[0] - 60, k[1] + 7.4 * u, 'Tawaf', u, c, 'middle', true) +
+          medal(k[0] + 22, k[1] - 50, 6, u, c) + tag(k[0] + 22, k[1] - 50 - 7 * u, 'Two rak‘ahs', u, c, 'middle', true) +
+          medal(KB.safa[0] + 4, KB.safa[1] + 14, 8, u, c) + tag(KB.safa[0] + 4, KB.safa[1] + 14 + 7.4 * u, 'Sa‘i starts at Safa', u, c, 'middle', true) +
+          medal(KB.marwah[0] + 6, KB.marwah[1] - 4, 9, u, c) + tag(KB.marwah[0] + 6, KB.marwah[1] - 4 - 7 * u, 'Ends at Marwah', u, c, 'middle', true);
+        return h;
+      }, 100);
+    }
+  };
+
+  /* ---------- welcome / your details ---------- */
+  function opts(name, list) {
+    return '<div class="opts">' + list.map(function (o) {
+      return '<button class="opt" data-act="set" data-k="' + name + '" data-v="' + o[0] + '" aria-pressed="' + (S[name] === o[0]) + '">' + esc(o[1]) + '</button>';
+    }).join('') + '</div>';
+  }
+  function vSetup() {
+    var h = top(S.setup ? 'Your details' : 'Assalamu alaykum', S.setup ? 'home' : '', S.setup ? 'Change any answer' : 'Welcome') + '<section class="pad">';
+    if (!S.setup) h += '<p class="lead">Three questions, so you only see what applies to you.</p>';
+    if (!S.setup) h += '<p class="draft">' + esc(C.draftNote) + '</p>';
+    h += '<h2 class="q">I am a</h2>' + opts('gender', [['m', 'Man'], ['f', 'Woman']]);
+    h += '<h2 class="q">My school of fiqh</h2>' + opts('school', pairs(C.schools));
+    h += '<h2 class="q">My journey</h2>' + opts('route', pairs(C.routes));
+    h += '<label class="q" for="f-date">Date of my Umrah <span class="optn">optional</span></label><input type="date" id="f-date" value="' + esc(S.date) + '">';
+    h += '<button class="btn" data-act="setup-done">' + (S.setup ? 'Save' : 'Start') + '</button>';
+    if (S.setup) h += ask('erase', 'Erase everything on this phone', 'Erase your answers, checklist, dua list and hotel card?', 'Yes, erase');
+    return h + '</section>';
+  }
+
+  /* ---------- home ---------- */
+  function tile(to, n, t, s, pct) {
+    var ph = { prepare: 'miqat', learn: 'kaaba', perform: 'blackstone', maps: 'nabawi' }[to] || (to.indexOf('lessons') === 0 ? 'umbrellas' : to === 'duas' ? 'rawdah' : '');
+    return '<button class="tile' + (hasPic(ph) ? ' pic' : '') + '" data-go="' + to + '">' + pic(ph, 'tpic', '') + '<span class="tn">' + n + '</span><b>' + t + '</b><small>' + esc(s) + '</small>' +
+      (pct == null ? '' : '<span class="tbar"><i style="width:' + Math.round(100 * pct) + '%"></i></span>') + '</button>';
+  }
+  function ring(pct, big, small) {
+    var c = 2 * Math.PI * 42, off = c * (1 - Math.max(0, Math.min(1, pct)));
+    return '<div class="ring"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="rt" cx="50" cy="50" r="42"/><circle class="rp" cx="50" cy="50" r="42" stroke-dasharray="' + c.toFixed(1) +
+      '" stroke-dashoffset="' + off.toFixed(1) + '" transform="rotate(-90 50 50)"/></svg><div class="rc"><b>' + esc(big) + '</b>' + (small ? '<small>' + esc(small) + '</small>' : '') + '</div></div>';
+  }
+  function todayCard() {
+    var rows = '';
+    ['makkah', 'madinah'].forEach(function (m) {
+      var D = LES.masjid[m], ds = D ? days(m) : [], d0 = ds.length && ds[0].i === 0 ? ds[0] : null, line = 'No lessons are listed for today';
+      if (d0) {
+        var L = D.lessons.filter(function (x) { return x.d === d0.key; }), T = prayerTimes(m, d0.date), now = Date.now(), pick = null, on = false;
+        L.forEach(function (x) {
+          if (pick || !T) return;
+          var w = slotWindow(x.s, T);
+          if (now <= w[1]) { pick = x; on = now >= w[0]; }
+        });
+        line = pick ? (on ? 'On now: ' : 'Next, after ' + pick.s.charAt(0).toUpperCase() + pick.s.slice(1) + ': ') + (pick.en || pick.ar) : 'Today’s lessons have finished';
+      }
+      rows += '<button class="rowb" data-go="lessons-' + m + '"><span class="ct"><small>' + CITY[m] + (d0 ? ' · ' + d0.n + (d0.n === 1 ? ' lesson today' : ' lessons today') : '') + '</small><b>' + esc(line) + '</b></span><span class="chev">›</span></button>';
+    });
+    return '<h2 class="gh">Today in the two masajid</h2><div class="rows">' + rows + '</div>';
+  }
+  function vHome() {
+    var items = chkItems(), cd = items.filter(function (i) { return S.checks[i.id]; }).length;
+    var ls = lessonKeys(), rd = ls.filter(function (k) { return S.read[k]; }).length;
+    var dn = doneCount(), nx = nextStage(), d = daysLeft(), ready = (cd + rd) / Math.max(1, items.length + ls.length);
+    var kick = 'Your journey', big, small, btn = 'Continue', to = '', pct = ready, rb = Math.round(ready * 100) + '%', rs = 'ready';
+    if (dn && nx) { kick = 'You are here'; big = 'Stage ' + nx + ': ' + stage(nx).title; small = 'Carry on from where you stopped.'; to = 'stage-' + nx; pct = dn / TOTAL; rb = dn + '/' + TOTAL; rs = 'stages'; }
+    else if (dn) { kick = 'Alhamdulillah'; big = 'Umrah complete'; small = 'May Allah accept it from you.'; pct = 1; rb = TOTAL + '/' + TOTAL; rs = 'stages'; }
+    else {
+      big = d === 0 ? 'Your Umrah is today' : d === 1 ? 'Your Umrah is tomorrow' : 'Prepare for your Umrah';
+      if (d != null && d > 1) { rb = String(d); rs = 'days to go'; }
+      if (d != null && d <= 0) { small = 'When you set out, begin with stage 1.'; btn = 'Begin my Umrah'; to = 'stage-1'; }
+      else if (cd < items.length) { small = 'Next: your checklist, ' + cd + ' of ' + items.length + ' done.'; to = 'prepare'; }
+      else if (rd < ls.length) { small = 'Next: learn the steps, ' + rd + ' of ' + ls.length + ' read.'; to = 'learn'; }
+      else { small = 'You are ready. Begin when you set out.'; btn = 'Begin my Umrah'; to = 'stage-1'; }
+    }
+    var h = '<header class="top home"><p>Assalamu alaykum</p><h1>Haram Guide</h1><p class="tagl">Umrah guide, maps and today’s classes</p></header><section class="pad homepad">';
+    h += '<div class="hero">' + ring(pct, rb, rs) + '<div class="ht"><p class="hk">' + kick + '</p><p class="hb">' + esc(big) + '</p><p class="hs">' + esc(small) + '</p></div>' +
+      (to ? '<button class="btn gold" data-go="' + to + '">' + btn + '</button>' : '') +
+      (!S.date && !dn ? '<button class="lnk" data-go="setup">Add the date of your Umrah</button>' : '') + '</div>';
+    if (dn && !nx) h += ask('restart', 'Start another Umrah', 'Clear your progress and both counters?', 'Yes, start again');
+    h += '<div class="tiles">' + tile('prepare', '01', 'Prepare', cd + ' of ' + items.length + ' done', cd / Math.max(1, items.length)) +
+      tile('learn', '02', 'Learn', rd + ' of ' + ls.length + ' read', rd / ls.length) +
+      tile('perform', '03', 'Perform', !nx ? 'Complete' : dn ? 'Stage ' + nx + ' of ' + TOTAL : TOTAL + ' stages', dn / TOTAL) +
+      tile('duas', '04', 'My duas', S.duas.length ? S.duas.filter(function (x) { return !x.done; }).length + ' still to make' : 'Write them here') + tile('maps', '05', 'Maps', 'Both masajid in 3D') + tile('lessons-' + (S.masjid || 'makkah'), '06', 'Lessons', lessonCount()) + '</div>';
+    h += '<button class="rowb solo" data-go="help"><span class="ct"><b>Help</b><small>What to do when something goes wrong</small></span><span class="chev">›</span></button>';
+    h += todayCard();
+    h += '<div class="me"><div class="line"><p>' + esc(details()) + '</p><button class="btn ghost small" data-go="setup">Change</button></div>' +
+      '<div class="line"><p>Text size</p><div class="sz">' + [0, 1, 2].map(function (i) {
+        return '<button class="s' + i + '" data-act="size" data-v="' + i + '" aria-pressed="' + (S.size === i) + '" aria-label="' + ['Normal text', 'Large text', 'Largest text'][i] + '">A</button>';
+      }).join('') + '</div></div></div>';
+    return h + '<p class="draft">' + esc(C.draftNote) + '</p></section>';
+  }
+
+  /* ---------- prepare: checklist, dua list, hotel card ---------- */
+  function checklist() {
+    var items = chkItems(), n = items.filter(function (i) { return S.checks[i.id]; }).length;
+    var h = '<p class="prog">' + n + ' of ' + items.length + ' done</p><div class="bar"><i style="width:' + Math.round(100 * n / Math.max(1, items.length)) + '%"></i></div>';
+    C.checklist.forEach(function (g) {
+      h += '<h2 class="gh">' + esc(g.title) + '</h2>';
+      if (g.note) h += '<p class="hint">' + esc(g.note) + (g.link ? ' <a href="' + esc(g.link[1]) + '" target="_blank" rel="noopener">' + esc(g.link[0]) + '</a>' : '') + '</p>';
+      h += '<div class="rows">' + g.items.filter(forMe).map(function (it) { return chk(!!S.checks[it.id], it.t, it.n, 'data-act="check" data-id="' + it.id + '"'); }).join('') + '</div>';
+    });
+    return h;
+  }
+  var DGROUPS = [['me', 'For myself'], ['family', 'My family'], ['asked', 'People who asked me'], ['ummah', 'The ummah']];
+  function duaList() {
+    var g = R.duaGroup || 'me';
+    var h = '<p class="lead">Write the duas you want to make, and the names of people who asked you to pray for them. They stay on this phone only.</p>' +
+      '<div class="opts">' + DGROUPS.map(function (x) { return '<button class="opt" data-act="dua-group" data-v="' + x[0] + '" aria-pressed="' + (g === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="addrow"><input type="text" id="dua-in" maxlength="200" placeholder="Health for my parents" aria-label="A dua or a name"><button class="btn small" data-act="dua-add">Add</button></div>';
+    if (!S.duas.length) return h + '<p class="hint">Your list is empty.</p>';
+    DGROUPS.forEach(function (x) {
+      var rows = '';
+      S.duas.forEach(function (d, i) { if ((d.g || 'me') === x[0]) rows += '<div class="item">' + chk(!!d.done, d.t, '', 'data-act="dua-tick" data-i="' + i + '"') + '<button class="del" data-act="dua-del" data-i="' + i + '">Remove</button></div>'; });
+      if (rows) h += '<h2 class="gh">' + x[1] + '</h2><div class="rows">' + rows + '</div>';
+    });
+    return h + '<p class="hint">Your list also appears under both counters. Tick a dua once you have made it.</p>';
+  }
+  function vDuas() { return top('My duas', 'home', 'Keep them with you') + '<section class="pad">' + pic('rawdah', 'bannerpic', '') + duaList() + '</section>'; }
+  function cardForm() {
+    var c = S.card || {}, h = '<p class="lead">If you are lost, show this card to a guard, a driver or anyone nearby.</p>';
+    C.card.fields.forEach(function (f) {
+      h += '<label class="fl">' + esc(f[1]) + '<input type="' + f[2] + '" id="c-' + f[0] + '" data-card="' + f[0] + '" value="' + esc(c[f[0]] || '') + '"' + (f[0] === 'hotelAr' ? ' dir="auto"' : '') + '></label>';
+    });
+    return h + '<button class="btn" data-go="card">Show my card</button>';
+  }
+  function vPrepare(r) {
+    var t = [['prepare', 'Checklist'], ['prep-duas', 'Dua list'], ['prep-card', 'Hotel card']];
+    var h = top('Prepare', '', 'Before you travel') + '<section class="pad"><div class="seg3" role="tablist">' + t.map(function (x) {
+      return '<button role="tab" aria-selected="' + (x[0] === r) + '" data-go="' + x[0] + '">' + x[1] + '</button>';
+    }).join('') + '</div>';
+    return h + (r === 'prep-duas' ? duaList() : r === 'prep-card' ? cardForm() : checklist()) + '</section>';
+  }
+  function vCard() {
+    var c = S.card || {}, F = {}, any = false;
+    C.card.fields.forEach(function (f) { F[f[0]] = f; if (c[f[0]]) any = true; });
+    var h = top('My hotel card', 'help') + '<section class="pad">';
+    if (!any) return h + '<div class="card"><h3>Your card is empty</h3><p>Fill it in before you travel, so that anyone can help you get back.</p></div><button class="btn" data-go="prep-card">Fill in my card</button></section>';
+    function row(k, rtl) { return c[k] ? '<dt>' + esc(F[k][1].split(',')[0]) + (F[k][3] ? '<span lang="ar" dir="rtl">' + esc(F[k][3]) + '</span>' : '') + '</dt><dd' + (rtl ? ' class="rtl" dir="auto"' : '') + '>' + esc(c[k]) + '</dd>' : ''; }
+    h += '<div class="hcard"><p class="ar" lang="ar" dir="rtl">' + esc(C.card.helpAr) + '</p><p class="hen">' + esc(C.card.helpEn) + '</p>' +
+      '<dl class="kv">' + row('hotel') + row('hotelAr', true) + row('area') + row('room') + row('meet') + '</dl>';
+    if (c.leaderPhone || c.family) h += '<p class="ar" lang="ar" dir="rtl">' + esc(C.card.callAr) + '</p><p class="hen">' + esc(C.card.callEn) + '</p><dl class="kv">' + row('leader') + row('leaderPhone') + row('family') + '</dl>';
+    if (c.name) h += '<dl class="kv">' + row('name') + '</dl>';
+    return h + '</div><button class="btn ghost" data-go="prep-card">Edit my card</button></section>';
+  }
+
+  /* ---------- learn ---------- */
+  function vLearn() {
+    var ks = lessonKeys(), rd = ks.filter(function (k) { return S.read[k]; }).length;
+    var rows = [['lesson-intro', 'intro', C.lessons.intro.title, 'Start here']];
+    C.stages.forEach(function (s) { rows.push(['read-' + s.id, 's' + s.id, s.title, s.where]); });
+    rows.push(['lesson-words', 'words', C.lessons.words.title, 'The Arabic terms you will hear']);
+    rows.push(['lesson-women', 'women', C.lessons.women.title, 'Clothing, pace, your period, hair']);
+    var h = top('Learn', '', 'Read it at home, before you go') + '<section class="pad"><p class="prog">' + rd + ' of ' + ks.length + ' read</p>' +
+      '<div class="bar"><i style="width:' + Math.round(100 * rd / ks.length) + '%"></i></div><div class="rows">';
+    rows.forEach(function (r, i) {
+      h += '<button class="rowb' + (S.read[r[1]] ? ' done' : '') + '" data-go="' + r[0] + '"><span class="num">' + (S.read[r[1]] ? CHECK : (i + 1)) + '</span>' +
+        '<span class="ct"><b>' + esc(r[2]) + '</b><small>' + esc(r[3]) + '</small></span><span class="chev">›</span></button>';
+    });
+    return h + '</div></section>';
+  }
+  function vLesson(id) {
+    var L = C.lessons[id]; if (!L) return vLearn();
+    var h = top(L.title, 'learn', 'Lesson') + '<section class="pad">';
+    L.blocks.forEach(function (b) {
+      h += '<article class="step"><h3>' + esc(b.h) + '</h3>' + (b.p || []).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') +
+        (b.list ? '<ol class="ol">' + b.list.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ol>' : '') +
+        (b.src ? '<p class="src">Source: ' + esc(b.src) + '</p>' : '') + '</article>';
+    });
+    if (id === 'words') h += '<div class="card"><dl class="gl">' + C.glossary.map(function (g) { return '<dt>' + esc(g[0]) + '</dt><dd>' + esc(g[1]) + '</dd>'; }).join('') + '</dl></div>';
+    return h + '<button class="btn" data-act="read" data-id="' + id + '">' + (S.read[id] ? 'Back to lessons' : 'Mark as read') + '</button></section>';
+  }
+
+  /* ---------- perform ---------- */
+  function vPerform() {
+    var dn = doneCount(), nx = nextStage();
+    var h = top('Perform', '', 'One stage at a time') + '<section class="pad">';
+    if (!nx) h += '<div class="card"><h3>Umrah complete</h3><p>May Allah accept it from you.</p></div>';
+    else h += '<button class="btn" data-go="stage-' + nx + '">' + (dn ? 'Continue with stage ' + nx : 'Begin with stage 1') + '</button>';
+    h += '<figure class="fig"><p class="hk">Your Umrah on the map</p>' + PLAN.journey() + '<figcaption>The numbers are the stages below. Stages 1 to 3 happen before you reach the Masjid, and Zamzam taps (stage 7) stand along the edges of the mataf.</figcaption></figure>';
+    h += '<div class="rows">' + C.stages.map(function (s) {
+      var sp = s.id === 2 && S.route === 'makkah' ? 'tanim' : STAGE_PIC[s.id];
+      return '<button class="rowb' + (S.done[s.id] ? ' done' : s.id === nx ? ' cur' : '') + ' haspic" data-go="stage-' + s.id + '">' + (hasPic(sp) ? pic(sp, 'rowpic', '') : '<span class="rowpic none"></span>') + '<span class="num">' + (S.done[s.id] ? CHECK : s.id) + '</span>' +
+        '<span class="ct"><b>' + esc(s.title) + '</b><small>' + esc(s.where) + '</small></span><span class="chev">›</span></button>';
+    }).join('') + '</div>';
+    if (dn || S.tawaf || S.sai) h += ask('restart', 'Start again from stage 1', 'Clear your progress and both counters?', 'Yes, start again');
+    return h + '</section>';
+  }
+  function counterEntry(kind) {
+    var taw = kind === 'tawaf', n = S[kind];
+    var t = n >= 7 ? (taw ? 'Seven rounds done' : 'Seven laps done') : n ? (taw ? 'Round ' : 'Lap ') + (n + 1) + ' of 7' : (taw ? 'Count your seven rounds' : 'Count your seven laps');
+    return '<div class="card cta"><p class="ctt">' + t + '</p><button class="btn" data-go="count-' + kind + '">' + (n ? 'Open the counter' : 'Start the counter') + '</button></div>';
+  }
+  function vStage(n, read) {
+    var st = stage(n); if (!st) return read ? vLearn() : vPerform();
+    var h = top(st.title, read ? 'learn' : 'perform', 'Stage ' + n + ' of ' + TOTAL + (read ? ' · Lesson' : '')) + '<section class="pad">' + segs(n) +
+      '<p class="where">' + esc(st.where) + '</p><p class="lead">' + esc(st.summary) + '</p>';
+    CUR_PIC = n === 2 && S.route === 'makkah' ? 'tanim' : (STAGE_PIC[n] || '');
+    if (hasPic(CUR_PIC)) h += '<figure class="shot">' + pic(CUR_PIC, '', st.title) + '<figcaption>What to look for</figcaption></figure>';
+    if (st.counter && !read) h += counterEntry(st.counter);
+    if (st.img) h += '<figure class="fig"><p class="hk">Where to go</p>' + PLAN[st.img]() + '<figcaption>' + esc(st.cap) + '</figcaption><button class="btn ghost small" data-go="map-makkah">Open the full map</button></figure>';
+    h += st.steps.filter(visible).map(stepHTML).join('') + legend();
+    if (read) h += '<button class="btn" data-act="read" data-id="s' + n + '">' + (S.read['s' + n] ? 'Back to lessons' : 'Mark as read') + '</button>';
+    else h += '<div class="two">' + (n > 1 ? '<button class="btn ghost" data-go="stage-' + (n - 1) + '">Back</button>' : '') +
+      '<button class="btn" data-act="stage-done" data-n="' + n + '">' + (n < TOTAL ? 'Done. Next stage' : 'Finish') + '</button></div>';
+    return h + '</section>';
+  }
+
+  /* ---------- the counters ---------- */
+  function arcs(n, done) {
+    var h = '', seg = 360 / 7, gap = 8, r = 104;
+    for (var i = 0; i < 7; i++) {
+      var a0 = (i * seg + gap / 2 - 90) * Math.PI / 180, a1 = ((i + 1) * seg - gap / 2 - 90) * Math.PI / 180;
+      h += '<path class="' + (i < n ? 'ad' : (!done && i === n ? 'ac' : 'at')) + '" d="M' + (120 + r * Math.cos(a0)).toFixed(1) + ' ' + (120 + r * Math.sin(a0)).toFixed(1) +
+        'A' + r + ' ' + r + ' 0 0 1 ' + (120 + r * Math.cos(a1)).toFixed(1) + ' ' + (120 + r * Math.sin(a1)).toFixed(1) + '"/>';
+    }
+    return '<svg viewBox="0 0 240 240" aria-hidden="true">' + h + '</svg>';
+  }
+  function vCount(kind) {
+    var taw = kind === 'tawaf', n = S[kind], done = n >= 7, cur = Math.min(n + 1, 7), toMarwah = cur % 2 === 1, man = S.gender === 'm';
+    var st = null; C.stages.forEach(function (s) { if (s.counter === kind) st = s; });
+    var what = taw ? 'when you pass the Black Stone' : toMarwah ? 'when you reach Marwah' : 'when you reach Safa';
+    var h = top(taw ? 'Tawaf counter' : 'Sa‘i counter', 'stage-' + st.id, 'Stage ' + st.id + ' of ' + TOTAL) + '<section class="pad count">';
+    if (!done) {
+      h += '<button class="ringtap tap" data-act="count" data-k="' + kind + '" aria-label="' + (taw ? 'Round ' : 'Lap ') + cur + ' of 7. Tap ' + what + '.">' + arcs(n, false) +
+        '<span class="rin"><small>' + (taw ? 'Round' : 'Lap') + '</small><b>' + cur + '</b><small>of 7</small></span></button>';
+      if (!taw) h += '<p class="dir">' + (toMarwah ? 'Safa → Marwah' : 'Marwah → Safa') + '</p>';
+      h += '<p class="taphint">Tap the circle ' + what + '</p>';
+      h += '<p class="hintl">' + (taw ? (man && cur <= 3 ? 'Brisk walk in this round' : 'Walk at a normal pace') : (man ? 'Jog between the green lights' : 'Walk at a normal pace')) + '</p>';
+    } else {
+      h += '<div class="ringtap">' + arcs(7, true) + '<span class="rin">' + CHECK + '</span></div><p class="ctt">' + (taw ? 'Seven rounds done' : 'Seven laps done') + '</p>' +
+        '<p class="lead">' + (taw ? 'Your tawaf is complete.' + (man ? ' Cover both shoulders now.' : '') : 'You are at Marwah. Your sa‘i is complete.') + '</p>' +
+        '<button class="btn" data-act="count-next" data-k="' + kind + '">' + (taw ? 'Next: two rak‘ahs' : 'Next: cut your hair') + '</button>';
+    }
+    h += '<div class="two">' + (n ? '<button class="btn ghost small" data-act="undo" data-k="' + kind + '">Undo last tap</button>' : '') +
+      (n && R.ask !== 'reset-' + kind ? '<button class="btn ghost small" data-act="ask" data-k="reset-' + kind + '">Start again</button>' : '') + '</div>';
+    if (R.ask === 'reset-' + kind) h += ask('reset-' + kind, '', 'Set this counter back to zero?', 'Yes, start again');
+    if (taw) h += '<div class="card"><h3>Between the Yemeni corner and the Black Stone</h3>' + duaHTML('rabbana') + '</div>';
+    else h += '<div class="card"><h3>On Safa and on Marwah</h3>' + duaHTML('safaDhikr') + '</div><div class="card"><h3>Between the green lights</h3>' + duaHTML('green') + '</div>';
+    return h + myDuas() + '</section>';
+  }
+
+  /* ---------- help ---------- */
+  function vHelp() {
+    var h = top('Help', '', 'When something goes wrong') + '<section class="pad"><h2 class="gh">What if…</h2><div class="rows">' +
+      C.help.map(function (x) { return '<button class="rowb" data-go="help-' + x.id + '"><span class="ct"><b>' + esc(x.q) + '</b></span><span class="chev">›</span></button>'; }).join('') + '</div>';
+    h += '<h2 class="gh">If you are lost</h2><button class="btn" data-go="card">Show my hotel card</button>';
+    h += '<h2 class="gh">Emergency numbers in Saudi Arabia</h2><div class="rows">' + C.numbers.map(function (n) {
+      return '<div class="rowb"><span class="tel">' + (ENV.preview ? esc(n[0]) : '<a href="tel:' + esc(n[0]) + '">' + esc(n[0]) + '</a>') + '</span><span class="ct"><b>' + esc(n[1]) + '</b></span></div>';
+    }).join('') + '</div><p class="hint">' + esc(C.numbersNote) + '</p>';
+    h += '<h2 class="gh">About this guide</h2><div class="card"><p>' + esc(C.draftNote) + '</p><p class="src">' + esc(C.version) + '. Every dua shows its source. Nothing you enter leaves this phone.</p>' +
+      (Object.keys(MEDIA.photos).length ? '<p class="src">Photographs from Wikimedia Commons: ' + Object.keys(MEDIA.photos).map(function (k) { var c = MEDIA.photos[k]; return '<a href="' + esc(c.page) + '" target="_blank" rel="noopener">' + esc(c.what || k) + '</a> (' + esc(c.by) + ', ' + esc(c.lic) + ')'; }).join('; ') + '.</p>' : '') +
+      '<p class="src">Teacher portraits: Presidency of Religious Affairs. Maps: OpenStreetMap contributors. Lesson schedule: ' + esc(LES.source || 'the official schedule') + '. Prayer times are worked out with the open-source adhan library.</p></div>';
+    return h + '</section>';
+  }
+  function vHelpItem(id) {
+    var x = null; C.help.forEach(function (i) { if (i.id === id) x = i; });
+    if (!x) return vHelp();
+    var note = noteOf(x);
+    var h = top('What if…', 'help') + '<section class="pad"><article class="step"><h3>' + esc(x.q) + '</h3>' + x.a.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') +
+      (note ? '<p class="sn">' + esc(note) + '</p>' : '') + (x.src ? '<p class="src">Source: ' + esc(x.src) + '</p>' : '') + '</article>';
+    if (x.card) h += '<button class="btn" data-go="card">Show my hotel card</button>';
+    return h + '<button class="btn ghost" data-go="help">Back to Help</button></section>';
+  }
+
+  /* ---------- the two masajid: maps and lessons ---------- */
+  var MAPS = window.UMRAH_MAPS || {}, LES = window.UMRAH_LESSONS || { masjid: {} };
+  var CITY = { makkah: 'Makkah', madinah: 'Madinah' }, SPOT = { makkah: [21.4225, 39.8262], madinah: [24.4672, 39.6111] };
+  var LAYERS = [['gate', 'Gates'], ['lesson', 'Lessons'], ['wudu', 'Wudu'], ['help', 'Help points']];
+  var SLOTS = [['fajr', 'Fajr'], ['dhuhr', 'Dhuhr'], ['asr', 'Asr'], ['maghrib', 'Maghrib'], ['isha', 'Isha']];
+  var KIND = { gate: 'Gate', cg: 'Courtyard gate', wudu: 'Wudu and toilets', help: 'Help point', lesson: 'Lesson place', place: 'Place' };
+  var pinCache = {};
+  var HIJRI = (function () { try { return new Intl.DateTimeFormat('en-u-ca-islamic-umalqura').resolvedOptions().calendar === 'islamic-umalqura'; } catch (e) { return false; } })();
+
+  function pinsOf(m) {
+    if (pinCache[m]) return pinCache[m];
+    var M = MAPS[m], out = M.pins.slice(), L = (LES.masjid[m] || {}).places || {};
+    Object.keys(L).forEach(function (id) {
+      var p = L[id]; if (!p.lat) return;
+      var who = [], les = (LES.masjid[m] || {}).lessons || [];
+      les.forEach(function (x) { if (x.p === id && who.indexOf(x.t) < 0) who.push(x.t); });
+      out.push({ k: 'lesson', n: p.en || p.ar, a: p.ar, x: (p.lon - M.proj.lonW) * M.proj.kx, y: (M.proj.latN - p.lat) * M.proj.ky, z: 1, pid: id, near: p.near, floor: p.floor, who: who, img: who.length && MEDIA.teachers.indexOf(m + '-' + who[0]) >= 0 ? 't-' + m + '-' + who[0] + '.jpg' : '' });
+    });
+    return (pinCache[m] = out);
+  }
+  function mapState(m) {
+    var M = MAPS[m];
+    if (!R.map || R.map.m !== m) R.map = { m: m, k: M.start.k, cx: M.start.cx, cy: M.start.cy, sel: -1, me: null };
+    return R.map;
+  }
+  function remember(m) { if (S.masjid !== m) { S.masjid = m; save(); } }
+  function masjidHead(m, mode) {
+    return '<div class="seg2">' + ['makkah', 'madinah'].map(function (x) { return '<button aria-pressed="' + (x === m) + '" data-go="' + mode + '-' + x + '">' + CITY[x] + '</button>'; }).join('') + '</div>' +
+      '<div class="seg2">' + [['map', 'Map'], ['lessons', 'Lessons']].map(function (x) { return '<button aria-pressed="' + (x[0] === mode) + '" data-go="' + x[0] + '-' + m + '">' + x[1] + '</button>'; }).join('') + '</div>';
+  }
+  function swatch(k) {
+    return '<svg class="sw" viewBox="0 0 16 16" aria-hidden="true">' + (k === 'gate' ? '<circle class="p-gate" cx="8" cy="8" r="7"/>' :
+      k === 'lesson' ? '<rect class="p-lesson" x="3" y="3" width="10" height="10" transform="rotate(45 8 8)"/>' :
+      k === 'wudu' ? '<rect class="p-wudu" x="2" y="2" width="12" height="12" rx="3"/>' : '<circle class="p-help" cx="8" cy="8" r="7"/>') + '</svg>';
+  }
+
+  /* dates and prayer times, always in Saudi time */
+  function parts(fmt, d) { var o = {}; fmt.formatToParts(d).forEach(function (p) { o[p.type] = p.value; }); return o; }
+  function saudiYMD(d) { return parts(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Riyadh', year: 'numeric', month: 'numeric', day: 'numeric' }), d); }
+  function saudiDay(i) { var p = saudiYMD(new Date()); return new Date(Date.UTC(+p.year, +p.month - 1, +p.day + i, 9)); }
+  function hijriKey(d) {
+    var p = parts(new Intl.DateTimeFormat('en-u-ca-islamic-umalqura-nu-latn', { timeZone: 'Asia/Riyadh', year: 'numeric', month: 'numeric', day: 'numeric' }), d);
+    return p.year + '-' + ('0' + p.month).slice(-2) + '-' + ('0' + p.day).slice(-2);
+  }
+  function days(m) {
+    var L = (LES.masjid[m] || {}).lessons || [], have = {}, out = [];
+    L.forEach(function (x) { have[x.d] = (have[x.d] || 0) + 1; });
+    if (!HIJRI) return Object.keys(have).sort().map(function (k) { return { key: k, label: +k.slice(8) + '/' + +k.slice(5, 7), sub: k.slice(0, 4) + ' AH', i: -1, n: have[k], date: null }; });
+    var wd = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Riyadh', weekday: 'short', day: 'numeric', month: 'short' });
+    var hj = new Intl.DateTimeFormat('en-GB-u-ca-islamic-umalqura-nu-latn', { timeZone: 'Asia/Riyadh', day: 'numeric', month: 'long' });
+    for (var i = 0; i < 21; i++) {
+      var d = saudiDay(i), k = hijriKey(d);
+      if (have[k]) out.push({ key: k, label: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : wd.format(d), sub: i < 2 ? wd.format(d) : hj.format(d), i: i, n: have[k], date: d });
+    }
+    return out;
+  }
+  function lessonCount() {
+    var n = 0;
+    ['makkah', 'madinah'].forEach(function (m) { var d = days(m); if (d.length && d[0].i === 0) n += d[0].n; });
+    return n ? n + ' today' : 'In the two masajid';
+  }
+  function prayerTimes(m, d) {
+    try {
+      var A = window.adhan, p = saudiYMD(d);
+      var t = new A.PrayerTimes(new A.Coordinates(SPOT[m][0], SPOT[m][1]), new Date(+p.year, +p.month - 1, +p.day), A.CalculationMethod.UmmAlQura());
+      return { fajr: t.fajr, sunrise: t.sunrise, dhuhr: t.dhuhr, asr: t.asr, maghrib: t.maghrib, isha: t.isha };
+    } catch (e) { return null; }
+  }
+  function slotWindow(s, T) {
+    var M = 60000, a = +T[s] + 10 * M;
+    var b = s === 'fajr' ? +T.sunrise + 30 * M : s === 'dhuhr' ? Math.min(+T.dhuhr + 100 * M, +T.asr - 10 * M) : s === 'asr' ? +T.maghrib - 5 * M : s === 'maghrib' ? +T.isha - 5 * M : +T.isha + 100 * M;
+    return [a, b];
+  }
+  function clock(d) { return new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Riyadh', hour: 'numeric', minute: '2-digit' }).format(d); }
+
+  /* the map */
+  function pinsSVG(m, px) {
+    var M = MAPS[m], st = R.map, v = Math.max(M.w, M.h) / st.k, u = v / px, P = pinsOf(m), h = '', x0 = st.cx - v / 2, y0 = st.cy - v / 2;
+    var rank = { lesson: 0, gate: 1, place: 2, wudu: 3, help: 4, cg: 5 }, zrank = { cg: 0, help: 1, wudu: 2, gate: 3, lesson: 4, place: 5 }, kept = [];
+    function n(a) { return (a * u).toFixed(2); }
+    function t(x, y, size, cls, txt, halo) {
+      return '<text class="' + cls + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" font-size="' + n(size) + '"' + (halo ? ' stroke-width="' + n(3) + '"' : '') + ' text-anchor="middle" dominant-baseline="central">' + esc(txt) + '</text>';
+    }
+    var labels = [], boxes = [];
+    M.labels.forEach(function (l) { if (st.k >= (l[3] || 1) && st.k < 6) labels.push([1.5, l[1], l[2], 11, l[0], 't-area']); });
+    var list = P.map(function (p, i) { return { p: p, i: i }; }).filter(function (o) {
+      var p = o.p;
+      if (o.i === st.sel) return true;
+      if (p.k !== 'place' && !R.layers[p.k === 'cg' ? 'gate' : p.k]) return false;
+      if (st.k < (p.z || 1)) return false;
+      return !(p.x < x0 - 30 * u || p.x > x0 + v + 30 * u || p.y < y0 - 30 * u || p.y > y0 + v + 30 * u);
+    });
+    /* Within one kind, a marker that would sit on top of another waits until you zoom in. */
+    list.sort(function (a, b) { return (b.i === st.sel) - (a.i === st.sel) || rank[a.p.k] - rank[b.p.k] || (a.p.z || 1) - (b.p.z || 1); });
+    list = list.filter(function (o) {
+      var p = o.p, near = 19 * u;
+      if (o.i !== st.sel && p.k !== 'lesson' && p.k !== 'place') {
+        for (var j = 0; j < kept.length; j++) if (kept[j].k === p.k && Math.abs(kept[j].x - p.x) < near && Math.abs(kept[j].y - p.y) < near) return false;
+      }
+      kept.push(p); return true;
+    });
+    list.sort(function (a, b) { return zrank[a.p.k] - zrank[b.p.k]; });
+    list.forEach(function (o) {
+      var p = o.p, i = o.i, sel = i === st.sel, x = p.x, y = p.y, num = String(p.r || '').split(',')[0];
+      var g = '<g class="pin" data-pin="' + i + '">';
+      if (sel) g += '<circle class="p-ring" cx="' + x + '" cy="' + y + '" r="' + n(17) + '" stroke-width="' + n(3) + '"/>';
+      if (p.k === 'gate') g += '<circle class="p-gate" cx="' + x + '" cy="' + y + '" r="' + n(p.z === 1 ? 10.5 : 9) + '"/>' + t(x, y, num.length > 2 ? 7.5 : 9.5, 't-on', num);
+      else if (p.k === 'cg') g += '<circle class="p-cg" cx="' + x + '" cy="' + y + '" r="' + n(9) + '" stroke-width="' + n(1.5) + '"/>' + t(x, y, 7, 't-cg', num);
+      else if (p.k === 'wudu') g += '<rect class="p-wudu" x="' + (x - 8 * u).toFixed(1) + '" y="' + (y - 8 * u).toFixed(1) + '" width="' + n(16) + '" height="' + n(16) + '" rx="' + n(4) + '"/>' + t(x, y, 9, 't-onw', 'W');
+      else if (p.k === 'help') g += '<circle class="p-help" cx="' + x + '" cy="' + y + '" r="' + n(8) + '"/>' + t(x, y, 9, 't-onh', 'H');
+      else if (p.k === 'lesson' && p.img) g += '<circle class="p-lesson" cx="' + x + '" cy="' + y + '" r="' + n(15) + '" stroke-width="' + n(2) + '"/><image href="' + p.img + '" x="' + (x - 13 * u).toFixed(1) + '" y="' + (y - 13 * u).toFixed(1) + '" width="' + n(26) + '" height="' + n(26) + '" preserveAspectRatio="xMidYMid slice" clip-path="circle(50%)"/>';
+      else if (p.k === 'lesson') g += '<rect class="p-lesson" x="' + (x - 8.5 * u).toFixed(1) + '" y="' + (y - 8.5 * u).toFixed(1) + '" width="' + n(17) + '" height="' + n(17) + '" stroke-width="' + n(1.5) + '" transform="rotate(45 ' + x + ' ' + y + ')"/>' + t(x, y, 9.5, 't-onl', 'L');
+      else g += '<circle class="p-place" cx="' + x + '" cy="' + y + '" r="' + n(p.big ? 3 : 4) + '"/>';
+      if (p.k === 'place') labels.push([sel ? 0 : p.big ? 1 : 3, x, y - 11 * u, p.big ? 12 : 10.5, p.s || p.n, 't-place']);
+      else if (p.k !== 'lesson' && (sel || (p.k === 'gate' && p.z === 1 && st.k >= 2.4))) labels.push([sel ? 0 : 2, x, y + 18 * u, 10.5, p.n, 't-place']);
+      h += g + '</g>';
+    });
+    /* Names go on last, most important first, and a name that would run into another is left for a closer zoom. */
+    labels.sort(function (a, b) { return a[0] - b[0]; }).forEach(function (l) {
+      var w = l[4].length * l[3] * 0.3 * u + 4 * u, hh = l[3] * 0.75 * u;
+      for (var j = 0; j < boxes.length; j++) if (Math.abs(boxes[j][0] - l[1]) < boxes[j][2] + w && Math.abs(boxes[j][1] - l[2]) < boxes[j][3] + hh) return;
+      boxes.push([l[1], l[2], w, hh]);
+      h += t(l[1], l[2], l[3], l[5], l[4], 1);
+    });
+    var nv = R.nav && R.nav.m === m ? P[R.nav.i] : null;
+    if (nv && st.me) h += '<line class="p-nav" x1="' + st.me.x.toFixed(1) + '" y1="' + st.me.y.toFixed(1) + '" x2="' + nv.x.toFixed(1) + '" y2="' + nv.y.toFixed(1) + '" stroke-width="' + n(4) + '" stroke-dasharray="' + n(2) + ' ' + n(8) + '"/>';
+    if (st.me) h += '<circle class="p-me" cx="' + st.me.x.toFixed(1) + '" cy="' + st.me.y.toFixed(1) + '" r="' + n(8) + '" stroke-width="' + n(3) + '"/>';
+    return h;
+  }
+  function lessonsAt(m, pid) {
+    var D = LES.masjid[m] || {}, out = [];
+    days(m).forEach(function (d) {
+      (D.lessons || []).forEach(function (x) {
+        if (x.d === d.key && x.p === pid && out.length < 6) out.push((d.i < 2 ? d.label : d.sub ? d.label : d.key) + ', after ' + x.s.charAt(0).toUpperCase() + x.s.slice(1) + ': ' + (x.en || x.ar) + ' (' + ((D.teachers[x.t] || {}).en || (D.teachers[x.t] || {}).ar || '') + ')');
+      });
+    });
+    return out;
+  }
+  function pinInfo(m) {
+    var st = R.map, p = st && st.sel >= 0 ? pinsOf(m)[st.sel] : null;
+    if (!p) return '<p class="hint">Tap a marker to see what it is. Drag to move the map and pinch to zoom.' + (document.getElementById('map3d') || is3d() ? ' Turn and tilt the view with two fingers.' : '') + '</p>';
+    var h = '<div class="card"><div class="sh"><span class="lab plain">' + KIND[p.k] + (p.r && p.k !== 'wudu' ? ' ' + esc(p.r) : '') + '</span></div><h3>' + esc(p.n) + '</h3>' + (p.a ? '<p class="ar2" lang="ar" dir="rtl">' + esc(p.a) + '</p>' : '');
+    if (p.note) h += '<p>' + esc(p.note) + '</p>';
+    if (p.k === 'lesson') {
+      h += '<p>' + esc([p.floor, p.near ? 'Near ' + p.near : ''].filter(Boolean).join('. ')) + '. This marker was placed by hand from the written description, so look for the teacher’s chair nearby.</p>';
+      if (p.who && p.who.length) h += '<div class="faces">' + p.who.map(function (id) { var t = (LES.masjid[m].teachers[id] || {}); return '<button class="who2" data-go="teacher-' + m + '-' + esc(id) + '">' + face(m, id) + '<span class="ct"><b>' + esc(t.en || t.ar || '') + '</b></span></button>'; }).join('') + '</div>';
+      var ls = lessonsAt(m, p.pid);
+      if (ls.length) h += '<ul class="plain">' + ls.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
+      h += '<button class="btn ghost small" data-go="lessons-' + m + '">All lessons</button>';
+    }
+    var gi = st.sel, going = R.nav && R.nav.m === m && R.nav.i === gi;
+    h += '<button class="btn small wide' + (going ? ' ghost' : '') + '" data-act="' + (going ? 'nav-stop' : 'nav') + '" data-i="' + gi + '">' + (going ? 'Stop guiding me' : 'Guide me here') + '</button>';
+    return h + '</div>';
+  }
+  /* The 3D view needs two library files. They load only when a map is opened; if they cannot load, the flat map is shown. */
+  var LIB3D = ['https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js', 'scene.js', 'map3d.js'], lib3d = null;
+  function loadScript(src) {
+    return new Promise(function (ok, no) {
+      var s = document.createElement('script'); s.src = src; s.async = false;
+      s.onload = function () { ok(); }; s.onerror = function () { no(new Error(src)); };
+      document.head.appendChild(s);
+    });
+  }
+  function need3d() {
+    if (!lib3d) lib3d = LIB3D.reduce(function (p, src) { return p.then(function () { return loadScript(src); }); }, Promise.resolve());
+    return lib3d;
+  }
+  var HAS3D = (function () { try { var c = document.createElement('canvas'); return !!(window.WebGLRenderingContext && (c.getContext('webgl') || c.getContext('experimental-webgl'))); } catch (e) { return false; } })();
+  function is3d() { return HAS3D && !R.no3d && S.mapMode !== 'flat'; }
+  function isDark() { var t = document.documentElement.getAttribute('data-theme'); return t ? t === 'dark' : !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); }
+
+  /* The street map is drawn, not a photograph of a map, so it stays sharp however far you zoom.
+     One set of colours for day and one for night; the same drawing is laid on the ground of the 3D view. */
+  var PAL = {
+    day: { land: '#F3F1EA', green: '#CFE5C6', plaza: '#ECE8DD', bld: '#E3DED1', bldLine: '#D3CCBB', case: '#D6D0C2', road: '#FFFFFF', foot: '#E2DCCD', text: '#6A6353', halo: '#F3F1EA',
+      mBld: '#FFF9E9', mExt: '#FBF3DC', mOpen: '#FFFFFF', mLine: '#B79743', mPlaza: '#EFEADF', mSvc: '#C9D2CC', mGreen: '#BFDDB6', rawdah: '#7DBE95', kaaba: '#1B1B1B', gold: '#B79743' },
+    night: { land: '#151C19', green: '#1E3526', plaza: '#1C2521', bld: '#232C28', bldLine: '#313D37', case: '#151C19', road: '#34413B', foot: '#28322D', text: '#A9B6AE', halo: '#151C19',
+      mBld: '#3A3524', mExt: '#322E20', mOpen: '#4B4A43', mLine: '#CBAA4F', mPlaza: '#202A25', mSvc: '#3D4E45', mGreen: '#234029', rawdah: '#2F7B52', kaaba: '#050505', gold: '#CBAA4F' }
+  };
+  function baseSVG(m, dark) {
+    var B = (window.UMRAH_BASE || {})[m], M = MAPS[m], c = dark ? PAL.night : PAL.day, h = '<rect x="-3000" y="-3000" width="8000" height="8000" fill="' + c.land + '"/>';
+    if (B) {
+      B.a.forEach(function (a) { h += '<path d="' + a[1] + '" fill="' + (a[0] === 'green' ? c.green : a[0] === 'plaza' ? c.plaza : c.bld) + '"' + (a[0] === 'bld' ? ' stroke="' + c.bldLine + '" stroke-width="0.6"' : '') + '/>'; });
+      var W = { major: 13, minor: 7, foot: 2.2 };
+      B.l.forEach(function (l) { if (l[0] !== 'foot') h += '<path d="' + l[1] + '" fill="none" stroke="' + c.case + '" stroke-width="' + (W[l[0]] + 2) + '" stroke-linecap="round" stroke-linejoin="round"/>'; });
+      ['foot', 'minor', 'major'].forEach(function (k) { B.l.forEach(function (l) { if (l[0] === k) h += '<path d="' + l[1] + '" fill="none" stroke="' + (k === 'foot' ? c.foot : c.road) + '" stroke-width="' + W[k] + '" stroke-linecap="round" stroke-linejoin="round"/>'; }); });
+    }
+    var F = { plaza: c.mPlaza, green: c.mGreen, svc: c.mSvc, bld: c.mBld, ext: c.mExt, masaa: c.mExt, open: c.mOpen, rawdah: c.rawdah, kaaba: c.kaaba };
+    M.shapes.forEach(function (x) {
+      var k = x[0];
+      if (k === 'women') h += '<path d="' + x[1] + '" fill="' + c.gold + '" fill-opacity="0.08" stroke="' + c.gold + '" stroke-width="1.5" stroke-dasharray="5 4"/>';
+      else if (k === 'hijr') h += '<path d="' + x[1] + '" fill="none" stroke="' + c.mLine + '" stroke-width="1.5"/>';
+      else h += '<path fill-rule="evenodd" d="' + x[1] + '" fill="' + (F[k] || c.mBld) + '"' + (k === 'bld' || k === 'ext' || k === 'masaa' || k === 'open' ? ' stroke="' + c.mLine + '" stroke-width="1.2"' : '') + '/>';
+    });
+    if (B && B.p) h += '<path d="' + B.p + '" fill="none" stroke="' + c.mLine + '" stroke-opacity="0.45" stroke-width="0.7"/>';
+    if (B) B.t.forEach(function (t) {
+      h += '<text x="' + t[1] + '" y="' + t[2] + '" font-size="' + t[4] + '" font-family="Inter, Arial, sans-serif" font-weight="600" text-anchor="middle" dominant-baseline="central" fill="' + c.text + '" stroke="' + c.halo + '" stroke-width="1.6" stroke-linejoin="round" paint-order="stroke"' + (t[3] ? ' transform="rotate(' + t[3] + ' ' + t[1] + ' ' + t[2] + ')"' : '') + '>' + esc(t[0]) + '</text>';
+    });
+    return h;
+  }
+  /* the same drawing as a stand-alone picture, for the ground of the 3D view */
+  function groundSVG(m, dark) {
+    var M = MAPS[m], pad = ((window.UMRAH_BASE || {})[m] || {}).pad || 0;
+    return { x: -pad, y: -pad, w: M.w + 2 * pad, h: M.h + 2 * pad,
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + (-pad) + ' ' + (-pad) + ' ' + (M.w + 2 * pad) + ' ' + (M.h + 2 * pad) + '">' + baseSVG(m, dark) + '</svg>' };
+  }
+  function flatSVG(m) {
+    var M = MAPS[m];
+    return '<svg id="map" class="map" viewBox="0 0 ' + M.w + ' ' + M.h + '" role="img" aria-label="Map of ' + esc(M.title) + '">' + baseSVG(m, isDark()) + '<g id="pins"></g></svg>';
+  }
+  function vMap(m) {
+    var M = MAPS[m]; if (!M) return vHome();
+    mapState(m); remember(m);
+    var d3 = is3d();
+    var h = top(M.title, '', CITY[m]) + '<section class="pad">' + masjidHead(m, 'map');
+    h += '<div class="mapbox">' + (d3 ? '<div id="map3d" class="map3dbox"><p class="maploading">Building the 3D view</p></div>' : flatSVG(m)) +
+      (HAS3D && !R.no3d ? '<div class="mapmode"><button aria-pressed="' + d3 + '" data-act="mapmode" data-v="3d">3D</button><button aria-pressed="' + !d3 + '" data-act="mapmode" data-v="flat">Flat</button></div>' : '') +
+      '<div class="zoom"><button data-act="zoom" data-v="1.7" aria-label="Zoom in">+</button><button data-act="zoom" data-v="0.59" aria-label="Zoom out">−</button></div></div>';
+    h += '<div id="pininfo">' + pinInfo(m) + '</div>';
+    h += '<div class="two"><button class="btn ghost small" data-act="zoom" data-v="0">Reset the view</button>' + (d3 ? '<button class="btn ghost small" data-act="tilt">' + (R.topView ? 'Angled view' : 'Top view') + '</button><button class="btn ghost small" data-act="inside">See inside</button>' : '') + '</div>';
+    if (d3) h += '<p class="hint">Zoom in close, or press “See inside”, and the roofs lift away so you can see where each class sits.</p>';
+    h += '<div class="chips">' + LAYERS.map(function (l) { return '<button class="chip" data-act="layer" data-k="' + l[0] + '" aria-pressed="' + !!R.layers[l[0]] + '">' + swatch(l[0]) + l[1] + '</button>'; }).join('') + '</div>';
+    h += '<div id="gpsbox">' + gpsHTML(m) + '</div>';
+    h += '<div class="addrow"><input type="text" inputmode="numeric" id="gate-in" maxlength="12" placeholder="79" aria-label="Gate number"><button class="btn small" data-act="find-gate">Find gate</button></div>';
+    return h + '<p class="hint">' + esc(MAPS.credit || '') + ' Some gates are missing from the map.' + (d3 ? ' The 3D model is a likeness built from the same data, not a survey.' : '') + '</p></section>';
+  }
+  function mapOpts(m) {
+    var st = R.map;
+    return { pins: pinsOf(m), labels: MAPS[m].labels, layers: R.layers, sel: st.sel, me: st.me, nav: R.nav && R.nav.m === m ? pinsOf(m)[R.nav.i] : null, dark: isDark(), ground: function (dark) { return groundSVG(m, dark); }, focus: st.focus, onSelect: function (i) { st.sel = i; if (R.redraw) R.redraw(); } };
+  }
+  function mapSetup() {
+    if (!R.map) return;
+    var st = R.map, m = st.m, host = document.getElementById('map3d');
+    if (host) {
+      need3d().then(function () {
+        var h2 = document.getElementById('map3d');
+        if (!h2 || !R.map || R.map.m !== m) return;
+        R.redraw = function () { window.UMRAH_3D.update(mapOpts(m)); var info = document.getElementById('pininfo'); if (info) info.innerHTML = pinInfo(m); };
+        window.UMRAH_3D.show(h2, m, mapOpts(m)); st.focus = null;
+      }).catch(function () { lib3d = null; R.no3d = true; toast('The 3D view could not load, so this is the flat map'); render(); });
+      return;
+    }
+    var svg = document.getElementById('map'), layer = document.getElementById('pins');
+    if (!svg || !layer) return;
+    var M = MAPS[m], big = Math.max(M.w, M.h), ptrs = {}, moved = 0;
+    st.focus = null;
+    function px() { return svg.clientWidth || 340; }
+    function apply() {
+      st.k = Math.max(1, Math.min(14, st.k));
+      st.cx = Math.max(0, Math.min(M.w, st.cx)); st.cy = Math.max(0, Math.min(M.h, st.cy));
+      var v = big / st.k;
+      svg.setAttribute('viewBox', (st.cx - v / 2).toFixed(1) + ' ' + (st.cy - v / 2).toFixed(1) + ' ' + v.toFixed(1) + ' ' + v.toFixed(1));
+    }
+    function draw() { apply(); layer.innerHTML = pinsSVG(m, px()); }
+    R.redraw = function () { draw(); var info = document.getElementById('pininfo'); if (info) info.innerHTML = pinInfo(m); };
+    svg.addEventListener('pointerdown', function (e) {
+      try { svg.setPointerCapture(e.pointerId); } catch (x) {}
+      ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
+      if (Object.keys(ptrs).length === 1) moved = 0;
+    });
+    svg.addEventListener('pointermove', function (e) {
+      var p = ptrs[e.pointerId]; if (!p) return;
+      var ids = Object.keys(ptrs), u = big / st.k / px();
+      if (ids.length === 1) {
+        var dx = e.clientX - p.x, dy = e.clientY - p.y;
+        moved += Math.abs(dx) + Math.abs(dy); st.cx -= dx * u; st.cy -= dy * u; p.x = e.clientX; p.y = e.clientY; apply();
+      } else if (ids.length === 2) {
+        var o = ptrs[ids[0] === String(e.pointerId) ? ids[1] : ids[0]], d0 = Math.hypot(p.x - o.x, p.y - o.y);
+        p.x = e.clientX; p.y = e.clientY;
+        var d1 = Math.hypot(p.x - o.x, p.y - o.y);
+        if (d0 > 0) { st.k *= d1 / d0; moved += 20; draw(); }
+      }
+    });
+    function up(e) {
+      var was = ptrs[e.pointerId]; delete ptrs[e.pointerId];
+      if (Object.keys(ptrs).length) return;
+      if (was && moved < 8 && e.type === 'pointerup') {
+        var el = document.elementFromPoint(e.clientX, e.clientY), g = el && el.closest ? el.closest('[data-pin]') : null;
+        st.sel = g ? +g.getAttribute('data-pin') : -1; R.redraw();
+      } else draw();
+    }
+    svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
+    svg.addEventListener('wheel', function (e) { e.preventDefault(); st.k *= e.deltaY < 0 ? 1.25 : 0.8; draw(); }, { passive: false });
+    draw();
+  }
+  function focusPin(m, i) { var p = pinsOf(m)[i]; mapState(m); R.map.sel = i; R.map.cx = p.x; R.map.cy = p.y; R.map.k = Math.max(R.map.k, 5); R.map.focus = { x: p.x, y: p.y }; }
+  function findGate() {
+    var el = document.getElementById('gate-in'), q = el ? el.value.trim().toLowerCase() : '', m = R.map.m, P = pinsOf(m), hit = -1;
+    if (!q) { toast('Type a gate number first'); return; }
+    P.forEach(function (p, i) { if (hit < 0 && (p.k === 'gate' || p.k === 'cg') && String(p.r || '').split(/,\s*/).indexOf(q) >= 0) hit = i; });
+    P.forEach(function (p, i) { if (hit < 0 && p.k === 'gate' && p.n.toLowerCase().indexOf(q) >= 0) hit = i; });
+    if (hit < 0) { toast('That gate is not on this map'); return; }
+    R.layers.gate = true; focusPin(m, hit); render();
+    var box = document.querySelector('.mapbox'); if (box && box.scrollIntoView) box.scrollIntoView({ block: 'nearest' });
+  }
+  function showPlace(m, pid) {
+    var hit = -1;
+    pinsOf(m).forEach(function (p, i) { if (p.k === 'lesson' && p.pid === pid) hit = i; });
+    if (hit < 0) { toast('That place is not on the map yet'); return; }
+    R.pop = null; R.layers.lesson = true; focusPin(m, hit); go('map-' + m);
+  }
+
+  /* ---- live position: a blue dot where the pilgrim stands. The position never leaves the phone. ---- */
+  var GPS = { id: null, on: false, msg: '', demo: 0 };
+  var DEMO = {
+    makkah: [[21.42120, 39.82385, 'outside King Fahd Gate'], [21.42243, 39.82652, 'on the mataf'], [21.42522, 39.82722, 'at Marwah']],
+    madinah: [[24.46742, 39.61040, 'outside As-Salam Gate'], [24.47030, 39.61118, 'in the north courtyard'], [24.46850, 39.60880, 'on the west side']]
+  };
+  function kmBetween(a, b, c, d) {
+    var r = Math.PI / 180, x = Math.sin((c - a) * r / 2), y = Math.sin((d - b) * r / 2), h = x * x + Math.cos(a * r) * Math.cos(c * r) * y * y;
+    return 12742 * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+  function nearText(m) {
+    var st = R.map, best = null, bd = 1e9;
+    pinsOf(m).forEach(function (p) { if (p.k !== 'gate') return; var d = Math.hypot(p.x - st.me.x, p.y - st.me.y); if (d < bd) { bd = d; best = p; } });
+    if (!best) return 'You are on the map.';
+    return 'You are about ' + Math.max(5, Math.round(bd / 5) * 5) + ' m from ' + (best.n.indexOf('Gate ') === 0 ? best.n : 'Gate ' + String(best.r).split(',')[0] + ', ' + best.n) + '.';
+  }
+  var WIND = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
+  function navHTML() {
+    var st = R.map, p = st && R.nav && R.nav.m === st.m ? pinsOf(st.m)[R.nav.i] : null;
+    if (!p) return '';
+    var h = '<div class="card navcard"><p class="hk">Guiding you to</p><h3>' + esc(p.n) + '</h3>';
+    if (!st.me) h += '<p>' + (GPS.on ? 'Waiting for your position.' : 'Turn on your position below and the app will point the way.') + '</p>';
+    else {
+      var dx = p.x - st.me.x, dy = p.y - st.me.y, d = Math.hypot(dx, dy), w = WIND[Math.round(((Math.atan2(dx, -dy) * 180 / Math.PI) + 360) / 45) % 8];
+      if (d < 15) h += '<p class="navbig">You have arrived</p><p>Look for the teacher’s chair or the sign nearby.</p>';
+      else {
+        h += '<p class="navbig">' + Math.max(10, Math.round(d / 10) * 10) + ' m · about ' + Math.max(1, Math.round(d / 65)) + ' min</p><p>Walk <b>' + w + '</b>, along the dotted line on the map. North is at the top in the flat and top views.</p>';
+        if (p.k !== 'gate' && p.k !== 'cg') {
+          var best = null, bd = 1e9;
+          pinsOf(st.m).forEach(function (g) { if (g.k !== 'gate') return; var q = Math.hypot(g.x - p.x, g.y - p.y); if (q < bd) { bd = q; best = g; } });
+          if (best && bd < 260) h += '<p>The nearest gate to it is <b>' + esc(best.n.indexOf('Gate ') === 0 ? best.n : 'Gate ' + String(best.r).split(',')[0] + ', ' + best.n) + '</b>.</p>';
+        }
+      }
+      h += '<p class="hint">The line is straight. The app does not know walls, barriers or closed paths, so follow the signs and the staff as well. Indoors, GPS can be off by 20 m or more.</p>';
+    }
+    return h + '<button class="btn ghost small" data-act="nav-stop">Stop guiding me</button></div>';
+  }
+  function navStart(i) {
+    var st = R.map; if (!st || !(i >= 0)) return;
+    R.nav = { m: st.m, i: i };
+    if (!st.me) { if (ENV.preview) { gpsDemo(); return; } if (navigator.geolocation && !GPS.on) { gpsStart(); return; } }
+    gpsPaint(false);
+    var b = document.getElementById('gpsbox'); if (b && b.scrollIntoView) b.scrollIntoView({ block: 'nearest' });
+  }
+  function gpsHTML() {
+    var h = navHTML() + '<div class="card"><h3>Where am I?</h3>' + (GPS.on && GPS.msg ? '<p class="gpsline">' + esc(GPS.msg) + '</p>' : '');
+    if (ENV.preview) h += '<p>The app shows a blue dot where you stand. This private link is not allowed to read a phone’s position, so try a sample instead.</p><button class="btn ghost small" data-act="gps-demo">' + (GPS.on ? 'Try another sample' : 'Show a sample position') + '</button>';
+    else if (!navigator.geolocation) h += '<p>This phone does not share its position with web pages.</p>';
+    else if (!GPS.on) h += '<p>See a blue dot where you are standing. Your position stays on your phone.</p><button class="btn small" data-act="gps">Show where I am</button>';
+    else h += '<button class="btn ghost small" data-act="gps-stop">Stop showing my position</button>';
+    return h + '</div>';
+  }
+  function gpsPaint(recentre) {
+    var st = R.map, box = document.getElementById('gpsbox');
+    if (!st) return;
+    if (box) box.innerHTML = gpsHTML();
+    if (recentre && st.me) {
+      if (document.getElementById('map3d') && window.UMRAH_3D && R.redraw) { R.redraw(); window.UMRAH_3D.focus(st.me.x, st.me.y); return; }
+      st.cx = st.me.x; st.cy = st.me.y; st.k = Math.max(st.k, 4);
+    }
+    if (R.redraw) R.redraw();
+  }
+  function gpsFix(lat, lon, acc, label) {
+    var st = R.map; if (!st) return;
+    var m = st.m, M = MAPS[m], x = (lon - M.proj.lonW) * M.proj.kx, y = (M.proj.latN - lat) * M.proj.ky, first = !st.me;
+    GPS.on = true;
+    if (x < -200 || y < -200 || x > M.w + 200 || y > M.h + 200) {
+      var d = kmBetween(lat, lon, SPOT[m][0], SPOT[m][1]);
+      st.me = null;
+      GPS.msg = 'GPS is working. You are about ' + (d >= 10 ? Math.round(d).toLocaleString('en-US') : d.toFixed(1)) + ' km from ' + M.title + ', so you are not on this map.';
+      gpsPaint(false); return;
+    }
+    st.me = { x: x, y: y };
+    GPS.msg = (label ? 'Sample, ' + label + '. ' : '') + nearText(m) + (label ? '' : ' Accurate to about ' + Math.max(5, Math.round((acc || 10) / 5) * 5) + ' m.');
+    gpsPaint(first || !!label);
+  }
+  function gpsStart() {
+    var q = /[?&]lat=([-\d.]+)&lon=([-\d.]+)/.exec(location.search);
+    GPS.on = true; GPS.msg = 'Finding you…';
+    if (q) { gpsFix(+q[1], +q[2], 10); return; }
+    gpsPaint(false);
+    try {
+      GPS.id = navigator.geolocation.watchPosition(function (p) { gpsFix(p.coords.latitude, p.coords.longitude, p.coords.accuracy); }, function (err) {
+        GPS.msg = err && err.code === 1 ? 'Location is switched off for this app. Turn it on in your phone’s settings, then try again.' : 'Your phone could not find its position. Try again in the open air.';
+        gpsPaint(false);
+      }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 25000 });
+    } catch (e) { GPS.msg = 'Your phone could not find its position.'; gpsPaint(false); }
+  }
+  function gpsStop(quiet) {
+    try { if (GPS.id != null) navigator.geolocation.clearWatch(GPS.id); } catch (e) {}
+    GPS.id = null; GPS.on = false; GPS.msg = '';
+    if (R.map) R.map.me = null;
+    if (!quiet) gpsPaint(false);
+  }
+  function gpsDemo() { var st = R.map, list = DEMO[st.m], s = list[GPS.demo % list.length]; GPS.demo++; gpsFix(s[0], s[1], 10, s[2]); }
+
+  /* the lessons */
+  function books(x) {
+    return (x.bk || []).map(function (b) {
+      return '<a class="btn ghost small" href="' + esc(b.url) + '" target="_blank" rel="noopener">' + (b.kind === 'pdf' ? 'Get the text (PDF)' : 'Read the text') + (x.bk.length > 1 ? ': ' + esc(b.en) : '') + '</a>';
+    }).join('');
+  }
+  function lessonHTML(m, x, on) {
+    var D = LES.masjid[m], t = D.teachers[x.t] || {}, p = D.places[x.p] || {};
+    return '<article class="step lessoncard"><div class="sh">' + (on ? '<span class="lab now">Likely on now</span>' : '') + '<span class="lab ' + (x.lang === 'Arabic' ? 'plain' : 'alt') + '">' + esc(x.lang) + '</span>' + (x.live ? '<span class="lab plain">Broadcast live</span>' : '') + '</div>' +
+      '<button class="who2" data-go="teacher-' + m + '-' + esc(x.t) + '">' + face(m, x.t) + '<span class="ct"><b>' + esc(t.en || t.ar || '') + '</b>' + (t.en ? '<small lang="ar" dir="rtl">' + esc(t.ar) + '</small>' : '') + '<small>About the teacher ›</small></span></button>' +
+      '<h3>' + esc(x.en || x.ar) + '</h3>' + (x.en ? '<p class="ar2" lang="ar" dir="rtl">' + esc(x.ar) + '</p>' : '') +
+      '<p><b>Where: </b>' + esc(p.en || p.ar || '') + (p.floor ? ' (' + esc(p.floor.toLowerCase()) + ')' : '') + '</p>' + (p.en ? '<p class="ar2" lang="ar" dir="rtl">' + esc(p.ar) + '</p>' : '') +
+      '<div class="two">' + (p.lat ? '<button class="btn ghost small" data-act="show-place" data-m="' + m + '" data-p="' + esc(x.p) + '">Show on map</button>' : '') +
+      (x.live && D.live ? '<a class="btn ghost small" href="' + esc(D.live) + '" target="_blank" rel="noopener">Watch live</a>' : '') + books(x) + '</div>' + ((x.bk || []).length ? '<p class="src">Text: ' + x.bk.map(function (b) { return esc(b.what || b.en); }).join('; ') + '. Free copy at ' + esc(x.bk[0].site || 'an outside library') + ', an outside site.</p>' : '') + planBtn(m, x) + '</article>';
+  }
+  /* ---- my classes: the lessons the pilgrim means to attend, and a way into their own calendar ---- */
+  function lid(m, x) { return [m, x.d, x.s, x.t, x.p].join('|'); }
+  function planBtn(m, x) {
+    var on = !!S.plan[lid(m, x)];
+    return '<button class="btn ' + (on ? 'ghost' : '') + ' small wide" data-act="plan" data-id="' + esc(lid(m, x)) + '" aria-pressed="' + on + '">' + (on ? '✓ In my classes. Remove' : 'Add to my classes') + '</button>';
+  }
+  function planned() {
+    var out = [];
+    ['makkah', 'madinah'].forEach(function (m) {
+      var D = LES.masjid[m]; if (!D) return;
+      days(m).forEach(function (d) {
+        if (d.i < 0 || !d.date) return;
+        var T = prayerTimes(m, d.date);
+        D.lessons.forEach(function (x) {
+          if (x.d !== d.key || !S.plan[lid(m, x)]) return;
+          var w = T ? slotWindow(x.s, T) : null, a = w ? w[0] + 5 * 60000 : 0;
+          out.push({ m: m, x: x, d: d, a: a, b: w ? Math.min(w[1], a + 60 * 60000) : 0 });
+        });
+      });
+    });
+    return out.sort(function (p, q) { return p.a - q.a; });
+  }
+  function planCount() { return planned().length; }
+  function evText(e) {
+    var D = LES.masjid[e.m], t = D.teachers[e.x.t] || {}, p = D.places[e.x.p] || {};
+    return { title: 'Lesson: ' + (e.x.en || e.x.ar) + (t.en ? ' (' + t.en + ')' : ''), where: (p.en || p.ar || '') + ', ' + MAPS[e.m].title + ', ' + CITY[e.m],
+      note: 'After ' + e.x.s.charAt(0).toUpperCase() + e.x.s.slice(1) + ' prayer. ' + e.x.lang + '. The start time is an estimate from the prayer time: lessons begin shortly after the prayer and can be moved or cancelled. Official schedule: ' + D.page };
+  }
+  function stamp(ms) { return new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z'); }
+  function gcal(e) {
+    var v = evText(e);
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(v.title) + '&dates=' + stamp(e.a) + '/' + stamp(e.b) + '&location=' + encodeURIComponent(v.where) + '&details=' + encodeURIComponent(v.note);
+  }
+  function icsText(list) {
+    function q(t) { return String(t).replace(/\\/g, '\\\\').replace(/([,;])/g, '\\$1').replace(/\n/g, '\\n'); }
+    var L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Haram Guide//EN', 'CALSCALE:GREGORIAN'];
+    list.forEach(function (e) {
+      var v = evText(e);
+      L.push('BEGIN:VEVENT', 'UID:' + lid(e.m, e.x).replace(/[^\w]/g, '-') + '@umrah-companion', 'DTSTAMP:' + stamp(Date.now()), 'DTSTART:' + stamp(e.a), 'DTEND:' + stamp(e.b),
+        'SUMMARY:' + q(v.title), 'LOCATION:' + q(v.where), 'DESCRIPTION:' + q(v.note), 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + q(v.title), 'TRIGGER:-PT30M', 'END:VALARM', 'END:VEVENT');
+    });
+    L.push('END:VCALENDAR');
+    return L.join('\r\n');
+  }
+  function icsSave() {
+    var list = planned().filter(function (e) { return e.a; });
+    if (!list.length) { toast('Add a class first'); return; }
+    try {
+      var url = URL.createObjectURL(new Blob([icsText(list)], { type: 'text/calendar' })), a = document.createElement('a');
+      a.href = url; a.download = 'my-classes.ics'; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      toast('Calendar file made. Open it to add the classes');
+    } catch (e) { toast('This phone could not make the file. Use the Google Calendar buttons'); }
+  }
+  function vPlan() {
+    var list = planned(), h = top('My classes', 'lessons-' + (S.masjid || 'makkah'), 'Your own timetable') + '<section class="pad">', last = '';
+    if (!list.length) return h + '<div class="card"><h3>Choose your classes</h3><p>Open the lessons and press “Add to my classes” on the ones you want to attend. They gather here in order, ready to go into your own calendar.</p><div class="two"><button class="btn small" data-go="lessons-makkah">Makkah lessons</button><button class="btn small" data-go="lessons-madinah">Madinah lessons</button></div></div></section>';
+    h += '<div class="card"><p>' + list.length + (list.length === 1 ? ' class' : ' classes') + ' chosen. Put them all into your calendar with one file (iPhone, Outlook and most others), or one at a time into Google Calendar. Each comes with a reminder 30 minutes before.</p>' +
+      '<button class="btn" data-act="ics">Add all to my calendar</button>' + (ENV.preview ? '<p class="hint">On this private link the file may be blocked. The Google Calendar buttons below work everywhere.</p>' : '') + '</div>';
+    list.forEach(function (e) {
+      var D = LES.masjid[e.m], t = D.teachers[e.x.t] || {}, p = D.places[e.x.p] || {}, day = e.d.label + (e.d.i < 2 ? ', ' + e.d.sub : '') + ' · ' + CITY[e.m];
+      if (day !== last) { h += '<h2 class="gh">' + esc(day) + '</h2>'; last = day; }
+      h += '<article class="step lessoncard"><p class="where">About ' + esc(clock(new Date(e.a))) + ' Saudi time, after ' + e.x.s.charAt(0).toUpperCase() + e.x.s.slice(1) + '</p>' +
+        '<button class="who2" data-go="teacher-' + e.m + '-' + esc(e.x.t) + '">' + face(e.m, e.x.t) + '<span class="ct"><b>' + esc(e.x.en || e.x.ar) + '</b><small>' + esc(t.en || t.ar || '') + '</small></span></button>' +
+        '<p><b>Where: </b>' + esc(p.en || p.ar || '') + '</p><div class="two">' + (p.lat ? '<button class="btn ghost small" data-act="show-place" data-m="' + e.m + '" data-p="' + esc(e.x.p) + '">Show on map</button>' : '') +
+        '<a class="btn ghost small" href="' + esc(gcal(e)) + '" target="_blank" rel="noopener">Google Calendar</a><button class="btn ghost small" data-act="plan" data-id="' + esc(lid(e.m, e.x)) + '">Remove</button></div></article>';
+    });
+    return h + '<p class="hint">Times are worked out from the prayer times, not announced, and your calendar shows them in your phone’s own time zone. Your choices stay on this phone.</p></section>';
+  }
+  function vTeacher(m, id) {
+    var D = LES.masjid[m], t = D && D.teachers[id]; if (!t) return vLessons(m || 'makkah');
+    var h = top(t.en || t.ar, 'lessons-' + m, 'Teacher at ' + MAPS[m].title) + '<section class="pad"><div class="card tcard">' + face(m, id, 'bigface') +
+      '<p class="ar2 c" lang="ar" dir="rtl">' + esc(t.ar) + '</p>' + (t.bio ? '<p>' + esc(t.bio) + '</p>' : '<p class="hint">A short biography has not been confirmed from a reliable source yet.</p>') +
+      (t.src && t.src.length ? '<p class="src">Source: ' + t.src.map(function (u, i) { return '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(u.split('/')[2]) + '</a>'; }).join(', ') + '. Portrait: Presidency of Religious Affairs.</p>' : '<p class="src">Portrait: Presidency of Religious Affairs.</p>') + '</div>';
+    var ds = days(m), any = false;
+    ds.forEach(function (d) {
+      var L = D.lessons.filter(function (x) { return x.d === d.key && x.t === id; });
+      if (!L.length) return;
+      any = true; h += '<h2 class="gh">' + esc(d.label) + (d.i < 2 ? '' : '') + '</h2>';
+      L.forEach(function (x) { var p = D.places[x.p] || {}; h += '<article class="step"><p class="where">After ' + x.s.charAt(0).toUpperCase() + x.s.slice(1) + '</p><h3>' + esc(x.en || x.ar) + '</h3><p>' + esc(p.en || p.ar || '') + '</p><div class="two">' + (p.lat ? '<button class="btn ghost small" data-act="show-place" data-m="' + m + '" data-p="' + esc(x.p) + '">Show on map</button>' : '') + books(x) + '</div></article>'; });
+    });
+    if (!any) h += '<p class="hint">No lessons are listed for this teacher in the saved days.</p>';
+    return h + '</section>';
+  }
+  /* the class that is on now, or starts within the hour: offered once as a pop-up */
+  function upcoming() {
+    var order = S.masjid === 'madinah' ? ['madinah', 'makkah'] : ['makkah', 'madinah'], hit = null, now = Date.now();
+    order.forEach(function (m) {
+      var D = LES.masjid[m], ds = D ? days(m) : [], d0 = ds.length && ds[0].i === 0 ? ds[0] : null, T = d0 ? prayerTimes(m, d0.date) : null;
+      if (!T || hit) return;
+      D.lessons.forEach(function (x) {
+        if (hit || x.d !== d0.key || !langOK(x)) return;
+        var w = slotWindow(x.s, T);
+        if (now >= w[0] - 3600000 && now <= w[1]) hit = { m: m, x: x, on: now >= w[0], at: T[x.s] };
+      });
+    });
+    return hit;
+  }
+  function popup() {
+    var u = R.pop, D, t, p;
+    if (!u) return '';
+    D = LES.masjid[u.m]; t = D.teachers[u.x.t] || {}; p = D.places[u.x.p] || {};
+    return '<div class="sheet" role="dialog" aria-label="A class"><div class="sheetcard">' + face(u.m, u.x.t, 'bigface') +
+      '<p class="hk">' + (u.on ? 'On now in ' : 'Soon in ') + CITY[u.m] + '</p><h3>' + esc(u.x.en || u.x.ar) + '</h3>' +
+      '<p><b>' + esc(t.en || t.ar || '') + '</b></p><p>' + esc(p.en || p.ar || '') + '</p>' +
+      '<p class="hint">' + (u.on ? 'It began after ' : 'It begins after ') + u.x.s.charAt(0).toUpperCase() + u.x.s.slice(1) + ', about ' + esc(clock(u.at)) + ' Saudi time. ' + esc(u.x.lang) + '.</p>' +
+      '<div class="two">' + (p.lat ? '<button class="btn small" data-act="show-place" data-m="' + u.m + '" data-p="' + esc(u.x.p) + '">Show on map</button>' : '') + '<button class="btn ghost small" data-act="pop-close">Close</button></div></div></div>';
+  }
+  function langOK(x) { return !S.lang || x.lang === S.lang; }
+  function langBar(m) {
+    var seen = {}, list = [];
+    ['makkah', 'madinah'].forEach(function (k) { ((LES.masjid[k] || {}).lessons || []).forEach(function (x) { if (!seen[x.lang]) { seen[x.lang] = 1; list.push(x.lang); } }); });
+    list.sort(function (a, b) { return (a !== 'Arabic') - (b !== 'Arabic') || (a < b ? -1 : 1); });
+    var here = {}; ((LES.masjid[m] || {}).lessons || []).forEach(function (x) { here[x.lang] = (here[x.lang] || 0) + 1; });
+    return '<h2 class="gh">Language of the class</h2><div class="opts">' + [''].concat(list).map(function (l) {
+      return '<button class="opt" data-act="les-lang" data-v="' + esc(l) + '" aria-pressed="' + ((S.lang || '') === l) + '">' + (l ? esc(l) + ' (' + (here[l] || 0) + ')' : 'All') + '</button>';
+    }).join('') + '</div>';
+  }
+  /* a month at a glance: the days that have classes carry their number, and you tap one to see it */
+  function monthGrid(m, ds, sel) {
+    var D = LES.masjid[m], by = {}, months = [], h = '', today = saudiYMD(new Date());
+    var MN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    ds.forEach(function (d) {
+      if (!d.date) return;
+      var p = saudiYMD(d.date), k = p.year + '-' + p.month + '-' + p.day, mk = p.year + '-' + p.month;
+      var n = 0, mine = 0; D.lessons.forEach(function (x) { if (x.d === d.key && langOK(x)) { n++; if (S.plan[lid(m, x)]) mine++; } });
+      by[k] = { d: d, n: n, mine: mine };
+      if (months.indexOf(mk) < 0) months.push(mk);
+    });
+    /* this month and the three after it, side by side: swipe left and right, or use the two buttons */
+    months = [];
+    for (var q = 0; q < 4; q++) { var md = new Date(Date.UTC(+today.year, +today.month - 1 + q, 1)); months.push(md.getUTCFullYear() + '-' + (md.getUTCMonth() + 1)); }
+    var selP = sel && sel.date ? saudiYMD(sel.date) : today, selM = selP.year + '-' + selP.month;
+    h += '<div class="cals" id="cals">';
+    months.forEach(function (mk, mi) {
+      var y = +mk.split('-')[0], mo = +mk.split('-')[1], first = new Date(Date.UTC(y, mo - 1, 1)).getUTCDay(), len = new Date(Date.UTC(y, mo, 0)).getUTCDate(), i;
+      h += '<div class="cal"' + (mk === selM ? ' data-cur="1"' : '') + '><div class="calt"><button class="calb" data-act="cal-go" data-v="-1" aria-label="Previous month"' + (mi === 0 ? ' disabled' : '') + '>‹</button><p class="calh">' + MN[mo - 1] + ' ' + y + '</p><button class="calb" data-act="cal-go" data-v="1" aria-label="Next month"' + (mi === months.length - 1 ? ' disabled' : '') + '>›</button></div><div class="calg">' + ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(function (w) { return '<span class="cw">' + w + '</span>'; }).join('');
+      for (i = 0; i < first; i++) h += '<span></span>';
+      for (i = 1; i <= len; i++) {
+        var e = by[y + '-' + mo + '-' + i], isT = +today.year === y && +today.month === mo && +today.day === i, cls = 'cd' + (isT ? ' today' : '');
+        if (e && e.n) h += '<button class="' + cls + ' has" data-act="day" data-m="' + m + '" data-v="' + e.d.key + '" aria-pressed="' + (sel && e.d.key === sel.key) + '" aria-label="' + i + ' ' + MN[mo - 1] + ', ' + e.n + ' classes"><b>' + i + '</b><small>' + e.n + (e.mine ? ' ✓' : '') + '</small></button>';
+        else h += '<span class="' + cls + '"><b>' + i + '</b></span>';
+      }
+      h += '</div></div>';
+    });
+    return h + '</div><p class="hint">Swipe left or right to change month. The small number is how many classes that day has, and a tick means one is in your classes. The Presidency posts a few weeks at a time, so later dates fill in when the next block is posted.</p>';
+  }
+  function vLessons(m) {
+    var D = LES.masjid[m]; if (!D || !MAPS[m]) return vHome();
+    remember(m);
+    var ds = days(m), sel = null, when = LES.read || '';
+    ds.forEach(function (d) { if (d.key === R.day[m]) sel = d; });
+    if (!sel) sel = ds[0] || null;
+    try { when = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(LES.read)); } catch (e) {}
+    var h = top('Lessons', '', MAPS[m].title) + '<section class="pad">' + masjidHead(m, 'lessons');
+    h += '<button class="rowb solo" data-go="plan"><span class="ct"><b>My classes</b><small>' + (planCount() ? planCount() + ' chosen. Add them to your calendar' : 'Pick the lessons you want and add them to your calendar') + '</small></span><span class="chev">›</span></button>';
+    if (!sel) h += '<div class="card"><h3>This saved schedule has ended</h3><p>Open the official schedule for today’s lessons. The usual lesson places are still marked on the map.</p></div>';
+    else {
+      h += langBar(m) + monthGrid(m, ds, sel);
+      h += '<h2 class="gh big">' + esc(sel.label + (sel.i < 2 ? ', ' + sel.sub : ' · ' + sel.sub)) + '</h2>';
+      var T = sel.date ? prayerTimes(m, sel.date) : null, now = Date.now(), L = D.lessons.filter(function (x) { return x.d === sel.key && langOK(x); });
+      h += '<p class="hint">' + (L.length ? L.length + (L.length === 1 ? ' lesson' : ' lessons') + (S.lang ? ' in ' + esc(S.lang) : '') + '. Times are Saudi time and are worked out, not announced.' : 'No ' + esc(S.lang) + ' classes are listed for this day. Choose “All” or another day.') + '</p>';
+      SLOTS.forEach(function (s) {
+        var list = L.filter(function (x) { return x.s === s[0]; }), on = false;
+        if (!list.length) return;
+        if (T && sel.i === 0) { var w = slotWindow(s[0], T); on = now >= w[0] && now <= w[1]; }
+        h += '<h2 class="gh">After ' + s[1] + (T ? ' · ' + s[1] + ' is about ' + esc(clock(T[s[0]])) : '') + '</h2>';
+        list.forEach(function (x) { h += lessonHTML(m, x, on); });
+      });
+    }
+    h += '<div class="card"><p class="src">Schedule read on ' + esc(when) + ' from the ' + esc(LES.source || 'official schedule') + '. Lessons can be cancelled or moved, so check before you go.</p>' +
+      '<a class="btn ghost small" href="' + esc(D.page) + '" target="_blank" rel="noopener">Open the official schedule</a></div>';
+    return h + '</section>';
+  }
+
+  /* ---------- drawing, moving between screens ---------- */
+  function render() {
+    document.documentElement.setAttribute('data-size', String(S.size || 0));
+    var r = S.setup ? R.route : 'setup', tab = 'home', h;
+    if (r === 'setup') { h = vSetup(); tab = S.setup ? 'home' : ''; }
+    else if (r === 'prepare' || r === 'prep-duas' || r === 'prep-card') { h = vPrepare(r); tab = 'prepare'; }
+    else if (r === 'learn') { h = vLearn(); tab = 'learn'; }
+    else if (r.indexOf('lesson-') === 0) { h = vLesson(r.slice(7)); tab = 'learn'; }
+    else if (r.indexOf('read-') === 0) { h = vStage(+r.slice(5), true); tab = 'learn'; }
+    else if (r === 'perform') { h = vPerform(); tab = 'perform'; }
+    else if (r.indexOf('stage-') === 0) { h = vStage(+r.slice(6), false); tab = 'perform'; }
+    else if (r === 'count-tawaf' || r === 'count-sai') { h = vCount(r.slice(6)); tab = 'perform'; }
+    else if (r === 'maps' || r.indexOf('map-') === 0) { h = vMap(r === 'maps' ? (S.masjid || 'makkah') : r.slice(4)); tab = 'maps'; }
+    else if (r.indexOf('lessons-') === 0) { h = vLessons(r.slice(8)); tab = 'maps'; }
+    else if (r === 'duas') { h = vDuas(); tab = 'home'; }
+    else if (r === 'plan') { h = vPlan(); tab = 'maps'; }
+    else if (r.indexOf('teacher-') === 0) { h = vTeacher(r.split('-')[1], r.split('-')[2]); tab = 'maps'; }
+    else if (r === 'help') { h = vHelp(); tab = 'help'; }
+    else if (r.indexOf('help-') === 0) { h = vHelpItem(r.slice(5)); tab = 'help'; }
+    else if (r === 'card') { h = vCard(); tab = 'help'; }
+    else { R.route = 'home'; h = vHome(); }
+    if (r === 'home' && !R.popDone) { R.popDone = true; try { R.pop = upcoming(); } catch (e) { R.pop = null; } }
+    view.innerHTML = h + (R.pop && (r === 'home' || r.indexOf('lessons-') === 0) ? popup() : '');
+    var cals = document.getElementById('cals'), curM = cals ? cals.querySelector('[data-cur]') : null;
+    if (curM) cals.scrollLeft = curM.offsetLeft - cals.offsetLeft;
+    R.redraw = null;
+    if (tab === 'maps') mapSetup();
+    if (window.UMRAH_3D && !document.getElementById('map3d')) window.UMRAH_3D.hide();
+    tabs.hidden = !tab;
+    tabs.innerHTML = tab ? TABS.map(function (t) { return '<a href="#' + t[0] + '" data-go="' + t[0] + '"' + (t[0] === tab ? ' aria-current="page"' : '') + '>' + t[1] + '</a>'; }).join('') : '';
+  }
+  var lock = null;
+  function wake() {
+    var need = R.route.indexOf('count-') === 0;
+    try {
+      if (need && !lock && navigator.wakeLock && document.visibilityState === 'visible') {
+        navigator.wakeLock.request('screen').then(function (l) { lock = l; l.addEventListener('release', function () { lock = null; }); }).catch(function () {});
+      } else if (!need && lock) { lock.release(); lock = null; }
+    } catch (e) {}
+  }
+  function go(route) {
+    if (GPS.on && !/^(maps$|map-)/.test(route)) gpsStop(true);
+    R.route = route; R.ask = '';
+    try { if (location.hash.slice(1) !== route) location.hash = route; } catch (e) {}
+    render(); window.scrollTo(0, 0); wake();
+  }
+
+  /* ---------- what each button does ---------- */
+  function act(a, t) {
+    var k = t.getAttribute('data-k'), i = +t.getAttribute('data-i'), el;
+    if (a === 'set') { S[k] = t.getAttribute('data-v'); save(); render(); }
+    else if (a === 'setup-done') {
+      if (!(S.gender && S.school && S.route)) { toast('Answer the three questions first'); return; }
+      S.setup = true; save(); go('home');
+    }
+    else if (a === 'size') { S.size = +t.getAttribute('data-v'); save(); render(); }
+    else if (a === 'check') { var id = t.getAttribute('data-id'); S.checks[id] = !S.checks[id]; save(); render(); }
+    else if (a === 'dua-add') {
+      el = document.getElementById('dua-in'); var v = el ? el.value.trim() : '';
+      if (!v) { toast('Type a dua or a name first'); return; }
+      S.duas.push({ t: v, done: false, g: R.duaGroup || 'me' }); save(); render();
+      el = document.getElementById('dua-in'); if (el) el.focus();
+    }
+    else if (a === 'dua-tick') { if (S.duas[i]) { S.duas[i].done = !S.duas[i].done; save(); render(); } }
+    else if (a === 'dua-del') { S.duas.splice(i, 1); save(); render(); }
+    else if (a === 'read') { S.read[t.getAttribute('data-id')] = true; save(); go('learn'); }
+    else if (a === 'stage-done') { var n = +t.getAttribute('data-n'); S.done[n] = true; save(); go(n < TOTAL ? 'stage-' + (n + 1) : 'home'); }
+    else if (a === 'count') {
+      var now = Date.now();
+      if (now - R.lastTap < 1200) { toast('Counted. One tap for each ' + (k === 'tawaf' ? 'round' : 'lap') + '.'); return; }
+      R.lastTap = now;
+      if (S[k] < 7) { S[k]++; save(); buzz(S[k] >= 7 ? [70, 60, 70] : 40); }
+      render(); el = view.querySelector('.tap, .count .btn'); if (el) el.focus({ preventScroll: true });
+    }
+    else if (a === 'undo') { if (S[k] > 0) { S[k]--; save(); } R.lastTap = 0; render(); }
+    else if (a === 'count-next') {
+      C.stages.forEach(function (s) { if (s.counter === k) { S.done[s.id] = true; save(); go('stage-' + (s.id + 1)); } });
+    }
+    else if (a === 'ask') { R.ask = k || ''; render(); }
+    else if (a === 'yes') {
+      R.ask = '';
+      if (k === 'restart') { S.done = {}; S.tawaf = 0; S.sai = 0; save(); go('perform'); }
+      else if (k === 'reset-tawaf') { S.tawaf = 0; save(); render(); }
+      else if (k === 'reset-sai') { S.sai = 0; save(); render(); }
+      else if (k === 'erase') { try { window.localStorage.removeItem(KEY); } catch (e) {} S = fresh(); go('setup'); }
+    }
+    else if (a === 'layer') { R.layers[k] = !R.layers[k]; render(); }
+    else if (a === 'zoom') {
+      var z = +t.getAttribute('data-v'), MM = MAPS[R.map.m];
+      if (document.getElementById('map3d') && window.UMRAH_3D && R.redraw) {
+        if (z) window.UMRAH_3D.zoom(z); else { window.UMRAH_3D.reset(); if (R.topView) { R.topView = false; render(); } }
+      } else {
+        if (!z) { R.map.k = MM.start.k; R.map.cx = MM.start.cx; R.map.cy = MM.start.cy; } else R.map.k = Math.max(1, Math.min(14, R.map.k * z));
+        if (R.redraw) R.redraw();
+      }
+    }
+    else if (a === 'mapmode') { S.mapMode = t.getAttribute('data-v'); save(); render(); }
+    else if (a === 'tilt') { R.topView = !R.topView; if (window.UMRAH_3D && R.redraw) window.UMRAH_3D.tilt(R.topView); render(); }
+    else if (a === 'find-gate') { findGate(); }
+    else if (a === 'gps') { gpsStart(); }
+    else if (a === 'gps-stop') { gpsStop(); }
+    else if (a === 'gps-demo') { gpsDemo(); }
+    else if (a === 'show-place') { showPlace(t.getAttribute('data-m'), t.getAttribute('data-p')); }
+    else if (a === 'cal-go') { var cs = document.getElementById('cals'); if (cs) cs.scrollLeft += (+t.getAttribute('data-v')) * cs.clientWidth; }
+    else if (a === 'les-lang') { S.lang = t.getAttribute('data-v') || ''; save(); render(); }
+    else if (a === 'day') { R.day[t.getAttribute('data-m')] = t.getAttribute('data-v'); render(); }
+    else if (a === 'pop-close') { R.pop = null; render(); }
+    else if (a === 'plan') { var pk = t.getAttribute('data-id'); if (S.plan[pk]) delete S.plan[pk]; else S.plan[pk] = 1; save(); toast(S.plan[pk] ? 'Added to my classes' : 'Removed'); render(); }
+    else if (a === 'ics') { icsSave(); }
+    else if (a === 'nav') { navStart(+t.getAttribute('data-i')); }
+    else if (a === 'nav-stop') { R.nav = null; gpsPaint(false); }
+    else if (a === 'inside') { if (window.UMRAH_3D && R.redraw) { window.UMRAH_3D.inside(); } }
+    else if (a === 'dua-group') { R.duaGroup = t.getAttribute('data-v'); render(); }
+    else if (a === 'listen') { toast('Audio is not recorded yet. A reciter will record it.'); }
+  }
+  document.addEventListener('click', function (e) {
+    var t = e.target && e.target.closest ? e.target.closest('[data-go],[data-act]') : null;
+    if (!t) return;
+    var g = t.getAttribute('data-go');
+    if (g) { e.preventDefault(); go(g); return; }
+    act(t.getAttribute('data-act'), t);
+  });
+  function typed(e) {
+    var t = e.target; if (!t || !t.getAttribute) return;
+    var ck = t.getAttribute('data-card');
+    if (ck) { S.card[ck] = t.value; save(); }
+    else if (t.id === 'f-date') { S.date = t.value; save(); }
+  }
+  document.addEventListener('input', typed);
+  document.addEventListener('change', typed);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target && e.target.id === 'dua-in') { e.preventDefault(); act('dua-add', e.target); }
+    if (e.key === 'Enter' && e.target && e.target.id === 'gate-in') { e.preventDefault(); findGate(); }
+  });
+  document.addEventListener('visibilitychange', wake);
+  window.addEventListener('hashchange', function () {
+    var h = ''; try { h = location.hash.slice(1); } catch (e) {}
+    if (h && h !== R.route && ROUTE.test(h)) { R.route = h; R.ask = ''; render(); window.scrollTo(0, 0); wake(); }
+  });
+
+  /* ---------- start ---------- */
+  var h0 = ''; try { h0 = location.hash.slice(1); } catch (e) {}
+  if (h0 && ROUTE.test(h0)) R.route = h0;
+  render(); wake();
+
+  /* A newer lesson schedule, when the app sits on its own web address and the phone is online. The saved copy is used otherwise. */
+  if (!ENV.preview && /^https?:$/.test(location.protocol) && window.fetch) {
+    fetch('lessons.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (d && d.read && d.masjid && d.read > (LES.read || '')) { LES = d; pinCache = {}; if (/^(home|maps|map-|lessons-)/.test(R.route)) render(); }
+    }).catch(function () {});
+  }
+
+  /* Offline copy: only on a real https address (or with ?sw=1 while testing on this Mac). The private preview page cannot use it. */
+  var local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  if (ENV.sw && 'serviceWorker' in navigator && (location.protocol === 'https:' || (local && /[?&]sw=1/.test(location.search)))) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+})();
