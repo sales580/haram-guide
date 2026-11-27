@@ -4,7 +4,7 @@
   'use strict';
   var C = window.UMRAH_CONTENT, ENV = window.UMRAH_ENV || {};
   var KEY = 'umrahCompanion.v1';
-  var DEF = { setup: false, gender: '', school: '', route: '', date: '', size: 0, checks: {}, read: {}, done: {}, tawaf: 0, sai: 0, duas: [], card: {}, masjid: '', mapMode: '3d', plan: {}, lang: '', docs: [], hotel: {} };
+  var DEF = { setup: false, gender: '', school: '', route: '', date: '', size: 0, checks: {}, read: {}, done: {}, tawaf: 0, sai: 0, duas: [], card: {}, masjid: '', mapMode: '3d', plan: {}, lang: '', docs: [], hotel: {}, purpose: '' };
   function fresh() { return JSON.parse(JSON.stringify(DEF)); }
 
   /* Everything the pilgrim enters stays on this phone (localStorage). Nothing is sent anywhere. */
@@ -25,7 +25,8 @@
   var TOTAL = C.stages.length;
   var CHECK = '<svg class="ck" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   var PLAY = '<svg class="pl" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
-  var TABS = [['home', 'Home'], ['prepare', 'Prepare'], ['learn', 'Learn'], ['perform', 'Perform'], ['maps', 'Maps'], ['help', 'Help']];
+  var TABS_UMRAH = [['home', 'Home'], ['prepare', 'Prepare'], ['learn', 'Learn'], ['perform', 'Perform'], ['classes', 'Classes'], ['maps', 'Maps'], ['help', 'Help']];
+  var TABS_CLASSES = [['home', 'Home'], ['classes', 'Classes'], ['maps', 'Maps'], ['help', 'Help']];
   var ROUTE = /^(home|prepare|prep-duas|prep-card|learn|perform|help|card|setup|maps|map-makkah|map-madinah|lessons-makkah|lessons-madinah|floors-makkah|plan|prep-docs|doc-\d+|count-tawaf|count-sai|duas|teacher-makkah-\d+|teacher-madinah-\d+|lesson-[a-z]+|read-\d+|stage-\d+|help-[a-z]+)$/;
 
   /* ---------- small helpers ---------- */
@@ -44,7 +45,7 @@
   function labelOf(s) { var l = s.l; if (l && typeof l === 'object') l = l[S.school || 'unsure'] || l.unsure; return l || 'tip'; }
   function noteOf(x) { if (!x.sch) return ''; var k = S.school; return (k && k !== 'unsure') ? (x.sch[k] || '') : (x.sch.all || ''); }
   function visible(s) { return forMe(s) && (!s.onlyRoute || s.onlyRoute.indexOf(S.route) >= 0); }
-  function details() { return [S.gender === 'm' ? 'Man' : 'Woman', C.schools[S.school], C.routes[S.route]].filter(Boolean).join(' · '); }
+  function details() { return [S.gender === 'm' ? 'Man' : S.gender === 'f' ? 'Woman' : '', C.schools[S.school], C.routes[S.route]].filter(Boolean).join(' · '); }
   function pairs(o) { return Object.keys(o).map(function (k) { return [k, o[k]]; }); }
   function toast(m) { toastEl.textContent = m; toastEl.className = 'show'; clearTimeout(toast.t); toast.t = setTimeout(function () { toastEl.className = ''; }, 2800); }
   function buzz(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
@@ -232,14 +233,22 @@
       return '<button class="opt" data-act="set" data-k="' + name + '" data-v="' + o[0] + '" aria-pressed="' + (S[name] === o[0]) + '">' + esc(o[1]) + '</button>';
     }).join('') + '</div>';
   }
+  var PURPOSES = [['umrah', 'Performing Umrah', 'The steps, what to prepare, and where to go'], ['classes', 'Attending classes', 'Who is teaching, where and when'], ['both', 'Both', 'My Umrah and the classes']];
+  function forClasses() { return S.purpose === 'classes'; }
+  /* the Umrah screens fit themselves to three answers; a class visitor who opens one is asked for them */
+  function askThree() { return S.gender && S.school && S.route ? '' : '<div class="card"><h3>Make the steps fit you</h3><p>Answer three short questions and the guide shows what applies to you.</p><button class="btn small" data-act="purpose-both">Answer them</button></div>'; }
   function vSetup() {
     var h = top(S.setup ? 'Your details' : 'Assalamu alaykum', S.setup ? 'home' : '', S.setup ? 'Change any answer' : 'Welcome') + '<section class="pad">';
-    if (!S.setup) h += '<p class="lead">Three questions, so you only see what applies to you.</p>';
+    var pur = S.purpose || (S.setup ? 'both' : '');
+    if (!S.setup) h += '<p class="lead">A few taps, so you only see what applies to you. You can change this at any time.</p>';
     if (!S.setup) h += '<p class="draft">' + esc(C.draftNote) + '</p>';
+    h += '<h2 class="q">What brings you here?</h2><div class="whys">' + PURPOSES.map(function (x) { return '<button class="opt why" data-act="set" data-k="purpose" data-v="' + x[0] + '" aria-pressed="' + (pur === x[0]) + '"><b>' + x[1] + '</b><small>' + x[2] + '</small></button>'; }).join('') + '</div>';
+    if (pur && pur !== 'classes') {
     h += '<h2 class="q">I am a</h2>' + opts('gender', [['m', 'Man'], ['f', 'Woman']]);
     h += '<h2 class="q">My school of fiqh</h2>' + opts('school', pairs(C.schools));
     h += '<h2 class="q">My journey</h2>' + opts('route', pairs(C.routes));
     h += '<label class="q" for="f-date">Date of my Umrah <span class="optn">optional</span></label><input type="date" id="f-date" value="' + esc(S.date) + '">';
+    }
     h += '<button class="btn" data-act="setup-done">' + (S.setup ? 'Save' : 'Start') + '</button>';
     if (S.setup) h += ask('erase', 'Erase everything on this phone', 'Erase your answers, checklist, dua list and hotel card?', 'Yes, erase');
     return h + '</section>';
@@ -273,7 +282,58 @@
     });
     return '<h2 class="gh">Today in the two masajid</h2><div class="rows">' + rows + '</div>';
   }
+  /* today's classes that have not finished, in both masajid, soonest first; if none are left, the next listed day */
+  function comingClasses() {
+    var now = Date.now(), today = [], later = [];
+    ['makkah', 'madinah'].forEach(function (m) {
+      var D = LES.masjid[m]; if (!D) return;
+      days(m).forEach(function (d) {
+        if (d.i < 0 || !d.date) return;
+        var T = prayerTimes(m, d.date); if (!T) return;
+        D.lessons.forEach(function (x) {
+          if (x.d !== d.key || !langOK(x)) return;
+          var w = slotWindow(x.s, T);
+          if (w[1] < now) return;
+          (d.i === 0 ? today : later).push({ m: m, x: x, d: d, a: w[0], on: now >= w[0], at: T[x.s] });
+        });
+      });
+    });
+    function by(p, q) { return p.a - q.a; }
+    today.sort(by); later.sort(by);
+    if (today.length) return { today: true, list: today };
+    var first = later.length ? later[0].d.i : -1;
+    return { today: false, list: later.filter(function (e) { return e.d.i === first; }) };
+  }
+  function classRow(e) {
+    var D = LES.masjid[e.m], t = D.teachers[e.x.t] || {};
+    return '<button class="rowb haspic" data-go="lessons-' + e.m + '">' + face(e.m, e.x.t, 'face') + '<span class="ct"><small>' + CITY[e.m] + ' · ' + (e.on ? 'on now' : 'after ' + e.x.s.charAt(0).toUpperCase() + e.x.s.slice(1)) + '</small><b>' + esc(e.x.en || e.x.ar) + '</b><small>' + esc(t.en || t.ar || '') + '</small></span><span class="chev">›</span></button>';
+  }
+  function homeTail(label) {
+    return '<div class="me"><div class="line"><p>' + esc(label) + '</p><button class="btn ghost small" data-go="setup">Change</button></div>' +
+      '<div class="line"><p>Text size</p><div class="sz">' + [0, 1, 2].map(function (i) {
+        return '<button class="s' + i + '" data-act="size" data-v="' + i + '" aria-pressed="' + (S.size === i) + '" aria-label="' + ['Normal text', 'Large text', 'Largest text'][i] + '">A</button>';
+      }).join('') + '</div></div></div>';
+  }
+  function vHomeClasses() {
+    var C2 = comingClasses(), e = C2.list[0], n = planCount();
+    var h = '<header class="top home"><p>Assalamu alaykum</p><h1>Haram Guide</h1><p class="tagl">Classes in Makkah and Madinah</p></header><section class="pad homepad">';
+    if (e) {
+      var D = LES.masjid[e.m], t = D.teachers[e.x.t] || {}, p = D.places[e.x.p] || {};
+      h += '<div class="hero nextclass">' + face(e.m, e.x.t, 'bigface') + '<p class="hk">' + (e.on ? 'On now in ' : C2.today ? 'Next today in ' : e.d.label + ' in ') + CITY[e.m] + '</p><p class="hb">' + esc(e.x.en || e.x.ar) + '</p>' +
+        '<p><b>' + esc(t.en || t.ar || '') + '</b></p><p>' + esc(p.en || p.ar || '') + '</p><p class="hs">After ' + e.x.s.charAt(0).toUpperCase() + e.x.s.slice(1) + ', about ' + esc(clock(e.at)) + ' Saudi time · ' + esc(e.x.lang) + '</p>' +
+        (p.lat ? '<button class="btn gold" data-act="show-place" data-m="' + e.m + '" data-p="' + esc(e.x.p) + '">Show me where</button>' : '') +
+        '<button class="lnk" data-go="lessons-' + e.m + '">All ' + CITY[e.m] + ' classes and the calendar</button></div>';
+    } else h += '<div class="hero nextclass"><p class="hb">No upcoming classes are saved</p><p class="hs">' + (S.lang ? 'None in ' + esc(S.lang) + '. Open a timetable and choose “All”.' : 'The next timetable has not arrived yet.') + '</p><button class="btn gold" data-go="lessons-makkah">Open the timetable</button></div>';
+    var rest = C2.list.slice(1, 5);
+    if (rest.length) h += '<h2 class="gh">' + (C2.today ? 'Later today' : 'Also that day') + '</h2><div class="rows">' + rest.map(classRow).join('') + '</div>';
+    h += '<button class="rowb solo" data-go="plan"><span class="ct"><b>My classes</b><small>' + (n ? n + ' chosen. Add them to your calendar' : 'Pick the classes you want to attend') + '</small></span><span class="chev">›</span></button>';
+    h += '<div class="tiles">' + tile('lessons-makkah', '01', 'Makkah', 'Timetable and calendar') + tile('lessons-madinah', '02', 'Madinah', 'Timetable and calendar') + tile('maps', '03', 'Maps', 'Class spots and gates') + tile('duas', '04', 'My duas', S.duas.length ? S.duas.filter(function (x) { return !x.done; }).length + ' still to make' : 'Write them here') + '</div>';
+    h += '<button class="rowb solo" data-go="help"><span class="ct"><b>Help</b><small>What to do when something goes wrong</small></span><span class="chev">›</span></button>';
+    h += '<button class="rowb solo" data-act="purpose-both"><span class="ct"><b>Performing Umrah too?</b><small>Add the Umrah guide to your home screen</small></span><span class="chev">›</span></button>';
+    return h + homeTail('Here for the classes') + '<p class="draft">' + esc(C.draftNote) + '</p></section>';
+  }
   function vHome() {
+    if (forClasses()) return vHomeClasses();
     var items = chkItems(), cd = items.filter(function (i) { return S.checks[i.id]; }).length;
     var ls = lessonKeys(), rd = ls.filter(function (k) { return S.read[k]; }).length;
     var dn = doneCount(), nx = nextStage(), d = daysLeft(), ready = (cd + rd) / Math.max(1, items.length + ls.length);
@@ -293,13 +353,14 @@
       (to ? '<button class="btn gold" data-go="' + to + '">' + btn + '</button>' : '') +
       (!S.date && !dn ? '<button class="lnk" data-go="setup">Add the date of your Umrah</button>' : '') + '</div>';
     if (dn && !nx) h += ask('restart', 'Start another Umrah', 'Clear your progress and both counters?', 'Yes, start again');
+    if (S.purpose === 'both') h += todayCard();
     h += '<div class="tiles">' + tile('prepare', '01', 'Prepare', cd + ' of ' + items.length + ' done', cd / Math.max(1, items.length)) +
       tile('learn', '02', 'Learn', rd + ' of ' + ls.length + ' read', rd / ls.length) +
       tile('perform', '03', 'Perform', !nx ? 'Complete' : dn ? 'Stage ' + nx + ' of ' + TOTAL : TOTAL + ' stages', dn / TOTAL) +
-      tile('duas', '04', 'My duas', S.duas.length ? S.duas.filter(function (x) { return !x.done; }).length + ' still to make' : 'Write them here') + tile('maps', '05', 'Maps', 'Both masajid in 3D') + tile('lessons-' + (S.masjid || 'makkah'), '06', 'Lessons', lessonCount()) + '</div>';
+      tile('duas', '04', 'My duas', S.duas.length ? S.duas.filter(function (x) { return !x.done; }).length + ' still to make' : 'Write them here') + tile('maps', '05', 'Maps', 'Both masajid in 3D') + tile('lessons-' + (S.masjid || 'makkah'), '06', 'Classes', lessonCount()) + '</div>';
     h += '<button class="rowb solo" data-go="prep-docs"><span class="ct"><b>My documents</b><small>' + (S.docs.length ? S.docs.length + ' saved, ready to show' : 'Visa links, and your papers ready to show') + '</small></span><span class="chev">›</span></button>';
     h += '<button class="rowb solo" data-go="help"><span class="ct"><b>Help</b><small>What to do when something goes wrong</small></span><span class="chev">›</span></button>';
-    h += todayCard();
+    if (S.purpose !== 'both') h += todayCard();
     h += '<div class="me"><div class="line"><p>' + esc(details()) + '</p><button class="btn ghost small" data-go="setup">Change</button></div>' +
       '<div class="line"><p>Text size</p><div class="sz">' + [0, 1, 2].map(function (i) {
         return '<button class="s' + i + '" data-act="size" data-v="' + i + '" aria-pressed="' + (S.size === i) + '" aria-label="' + ['Normal text', 'Large text', 'Largest text'][i] + '">A</button>';
@@ -466,7 +527,7 @@
     var h = top('Prepare', '', 'Before you travel') + '<section class="pad"><div class="seg3 four" role="tablist">' + t.map(function (x) {
       return '<button role="tab" aria-selected="' + (x[0] === r) + '" data-go="' + x[0] + '">' + x[1] + '</button>';
     }).join('') + '</div>';
-    return h + (r === 'prep-duas' ? duaList() : r === 'prep-card' ? cardForm() : r === 'prep-docs' ? docsView() : checklist()) + '</section>';
+    return h + (r === 'prepare' ? askThree() : '') + (r === 'prep-duas' ? duaList() : r === 'prep-card' ? cardForm() : r === 'prep-docs' ? docsView() : checklist()) + '</section>';
   }
   function vCard() {
     var c = S.card || {}, F = {}, any = false;
@@ -511,7 +572,7 @@
   /* ---------- perform ---------- */
   function vPerform() {
     var dn = doneCount(), nx = nextStage();
-    var h = top('Perform', '', 'One stage at a time') + '<section class="pad">';
+    var h = top('Perform', '', 'One stage at a time') + '<section class="pad">' + askThree();
     if (!nx) h += '<div class="card"><h3>Umrah complete</h3><p>May Allah accept it from you.</p></div>';
     else h += '<button class="btn" data-go="stage-' + nx + '">' + (dn ? 'Continue with stage ' + nx : 'Begin with stage 1') + '</button>';
     h += '<figure class="fig"><p class="hk">Your Umrah on the map</p>' + PLAN.journey() + '<figcaption>The numbers are the stages below. Stages 1 to 3 happen before you reach the Masjid, and Zamzam taps (stage 7) stand along the edges of the mataf.</figcaption></figure>';
@@ -634,7 +695,7 @@
   function remember(m) { if (S.masjid !== m) { S.masjid = m; save(); } }
   function masjidHead(m, mode) {
     return '<div class="seg2">' + ['makkah', 'madinah'].map(function (x) { return '<button aria-pressed="' + (x === m) + '" data-go="' + mode + '-' + x + '">' + CITY[x] + '</button>'; }).join('') + '</div>' +
-      '<div class="' + (m === 'makkah' ? 'seg3' : 'seg2') + ' pick">' + (m === 'makkah' ? [['map', 'Map'], ['floors', 'Floors'], ['lessons', 'Lessons']] : [['map', 'Map'], ['lessons', 'Lessons']]).map(function (x) { return '<button aria-pressed="' + (x[0] === mode) + '" data-go="' + x[0] + '-' + m + '">' + x[1] + '</button>'; }).join('') + '</div>';
+      '<div class="' + (m === 'makkah' ? 'seg3' : 'seg2') + ' pick">' + (m === 'makkah' ? [['map', 'Map'], ['floors', 'Floors'], ['lessons', 'Classes']] : [['map', 'Map'], ['lessons', 'Classes']]).map(function (x) { return '<button aria-pressed="' + (x[0] === mode) + '" data-go="' + x[0] + '-' + m + '">' + x[1] + '</button>'; }).join('') + '</div>';
   }
   function swatch(k) {
     return '<svg class="sw" viewBox="0 0 16 16" aria-hidden="true">' + (k === 'gate' ? '<circle class="p-gate" cx="8" cy="8" r="7"/>' :
@@ -1308,7 +1369,7 @@
     ds.forEach(function (d) { if (d.key === R.day[m]) sel = d; });
     if (!sel) sel = ds[0] || null;
     try { when = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(LES.read)); } catch (e) {}
-    var h = top('Lessons', '', MAPS[m].title) + '<section class="pad">' + masjidHead(m, 'lessons');
+    var h = top('Classes', '', MAPS[m].title) + '<section class="pad">' + masjidHead(m, 'lessons');
     h += '<button class="rowb solo" data-go="plan"><span class="ct"><b>My classes</b><small>' + (planCount() ? planCount() + ' chosen. Add them to your calendar' : 'Pick the lessons you want and add them to your calendar') + '</small></span><span class="chev">›</span></button>';
     if (!sel) h += '<div class="card"><h3>This saved schedule has ended</h3><p>Open the official schedule for today’s lessons. The usual lesson places are still marked on the map.</p></div>';
     else {
@@ -1363,7 +1424,10 @@
     if (tab === 'maps') mapSetup();
     if (window.UMRAH_3D && !document.getElementById('map3d')) window.UMRAH_3D.hide();
     tabs.hidden = !tab;
-    tabs.innerHTML = tab ? TABS.map(function (t) { return '<a href="#' + t[0] + '" data-go="' + t[0] + '"' + (t[0] === tab ? ' aria-current="page"' : '') + '>' + t[1] + '</a>'; }).join('') : '';
+    if (r.indexOf('lessons-') === 0 || r === 'plan' || r.indexOf('teacher-') === 0) tab = 'classes';
+    var TL = forClasses() ? TABS_CLASSES : TABS_UMRAH;
+    tabs.classList.toggle('many', TL.length > 6);
+    tabs.innerHTML = tab ? TL.map(function (t) { var to = t[0] === 'classes' ? 'lessons-' + (S.masjid || 'makkah') : t[0]; return '<a href="#' + to + '" data-go="' + to + '"' + (t[0] === tab ? ' aria-current="page"' : '') + '>' + t[1] + '</a>'; }).join('') : '';
   }
   var lock = null;
   function wake() {
@@ -1386,9 +1450,12 @@
     var k = t.getAttribute('data-k'), i = +t.getAttribute('data-i'), el;
     if (a === 'set') { S[k] = t.getAttribute('data-v'); save(); render(); }
     else if (a === 'setup-done') {
-      if (!(S.gender && S.school && S.route)) { toast('Answer the three questions first'); return; }
-      S.setup = true; save(); go('home');
+      if (!S.purpose && S.setup) S.purpose = 'both';
+      if (!S.purpose) { toast('Choose what brings you here'); return; }
+      if (S.purpose !== 'classes' && !(S.gender && S.school && S.route)) { toast('Answer the three questions first'); return; }
+      S.setup = true; R.popDone = false; save(); go('home');
     }
+    else if (a === 'purpose-both') { if (S.purpose === 'classes' || !S.purpose) S.purpose = 'both'; save(); if (S.gender && S.school && S.route) go('home'); else go('setup'); }
     else if (a === 'size') { S.size = +t.getAttribute('data-v'); save(); render(); }
     else if (a === 'check') { var id = t.getAttribute('data-id'); S.checks[id] = !S.checks[id]; save(); render(); }
     else if (a === 'dua-add') {

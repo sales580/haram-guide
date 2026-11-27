@@ -465,3 +465,12 @@ html, body, button, a, .mapbox { touch-action: manipulation; }
 .stack .slab { cursor: pointer; }
 .floorbar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .seg3.pick button[aria-pressed="true"] { background: var(--card); color: var(--accent); box-shadow: 0 1px 4px var(--shade-2); }
+
+/* ---- what brings you here, the class visitor's home, seven tabs ---- */
+.whys { display: flex; flex-direction: column; gap: 8px; }
+.opt.why { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 12px 16px; }
+.opt.why small { font-weight: 500; font-size: .85rem; color: var(--muted); }
+.hero.nextclass { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.hero.nextclass .btn { width: 100%; margin-top: 6px; }
+#tabs.many { width: calc(100% - 12px); padding-inline: 4px; gap: 0; }
+#tabs.many a { font-size: 10.5px; letter-spacing: -.01em; padding: 0 1px; border-radius: 12px; }
