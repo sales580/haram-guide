@@ -708,6 +708,7 @@
     if (d3) h += '<p class="hint">Zoom in close, or press “See inside”, and the roofs lift away so you can see where each class sits.</p>';
     h += '<div class="chips">' + LAYERS.map(function (l) { return '<button class="chip" data-act="layer" data-k="' + l[0] + '" aria-pressed="' + !!R.layers[l[0]] + '">' + swatch(l[0]) + l[1] + '</button>'; }).join('') + '</div>';
     h += '<div id="gpsbox">' + gpsHTML(m) + '</div>';
+    h += '<div class="card"><h3>The official live map</h3><p>The General Authority for the Two Holy Mosques has its own interactive map, with routes and services in seven languages.</p><a class="btn ghost small" href="https://alharamain.gov.sa/public/?page=interactive_maps_ar" target="_blank" rel="noopener">Open the official live map</a><p class="hint">It opens in your browser and needs internet. It may only load inside Saudi Arabia.</p></div>';
     h += '<div class="addrow"><input type="text" inputmode="numeric" id="gate-in" maxlength="12" placeholder="79" aria-label="Gate number"><button class="btn small" data-act="find-gate">Find gate</button></div>';
     return h + '<p class="hint">' + esc(MAPS.credit || '') + ' Some gates are missing from the map.' + (d3 ? ' The 3D model is a likeness built from the same data, not a survey.' : '') + '</p></section>';
   }
