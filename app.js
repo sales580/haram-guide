@@ -315,18 +315,23 @@
     h += ask('erase', 'Erase everything on this phone', 'Erase your answers, checklist, dua list and hotel card?', 'Yes, erase');
     return h + '<p class="credit">' + esc(C.draftNote) + '</p></section>';
   }
+  /* one half of the split Home: the next class in a city */
+  function nextIn(list, m) { for (var i = 0; i < list.length; i++) if (list[i].m === m) return list[i]; return null; }
+  function splitClass(m, C2) {
+    var e = nextIn(C2.list, m), D = LES.masjid[m] || { teachers: {} }, t = e ? D.teachers[e.x.t] || {} : {};
+    if (!e) return '<button class="snext" data-go="lessons-' + m + '"><span><small>' + CITY[m] + '</small><b>Classes and calendar</b></span><em>›</em></button>';
+    return '<button class="snext" data-go="lessons-' + m + '">' + face(m, e.x.t, 'face') + '<span><small>' + (e.on ? 'On now' : (C2.today ? 'Next class' : e.d.label)) + ' · after ' + e.x.s.charAt(0).toUpperCase() + e.x.s.slice(1) + ', about ' + esc(clock(e.at)) + '</small><b>' + esc(e.x.en || e.x.ar) + '</b><small>' + esc(t.en || t.ar || '') + '</small></span><em>›</em></button>';
+  }
+  function split(topInner, bottomInner) {
+    return '<header class="split"><div class="shalf smk"><img src="p-kaaba.jpg" alt="The Ka‘bah and the mataf" style="object-position:33% 62%"><p class="sbrand">Haramain Path</p><p class="sar gold" lang="ar" dir="rtl">مكة</p>' + topInner + '</div>' +
+      '<div class="shalf smd"><img src="p-nabawi.jpg" alt="The Prophet’s Mosque"><p class="sar" lang="ar" dir="rtl">المدينة</p>' + bottomInner + '</div>' + slash('sline', 100, 0) + '</header>';
+  }
   function vHomeClasses() {
     var C2 = comingClasses(), e = C2.list[0], n = planCount();
-    var h = '<header class="top home"><p>Assalamu alaykum</p><h1>Haramain Path</h1><p class="tagl">Classes in Makkah and Madinah</p></header><section class="pad homepad">';
-    if (e) {
-      var D = LES.masjid[e.m], t = D.teachers[e.x.t] || {}, p = D.places[e.x.p] || {};
-      h += '<div class="hero nextclass">' + face(e.m, e.x.t, 'bigface') + '<p class="hk">' + (e.on ? 'On now in ' : C2.today ? 'Next today in ' : e.d.label + ' in ') + CITY[e.m] + '</p><p class="hb">' + esc(e.x.en || e.x.ar) + '</p>' +
-        '<p><b>' + esc(t.en || t.ar || '') + '</b></p><p>' + esc(p.en || p.ar || '') + '</p><p class="hs">After ' + e.x.s.charAt(0).toUpperCase() + e.x.s.slice(1) + ', about ' + esc(clock(e.at)) + ' Saudi time · ' + esc(e.x.lang) + '</p>' +
-        (p.lat ? '<button class="btn gold" data-act="show-place" data-m="' + e.m + '" data-p="' + esc(e.x.p) + '">Show me where</button>' : '') +
-        '<button class="lnk" data-go="lessons-' + e.m + '">All ' + CITY[e.m] + ' classes and the calendar</button></div>';
-    } else h += '<div class="hero nextclass"><p class="hb">No upcoming classes are saved</p><p class="hs">' + 'The next timetable has not arrived yet.' + '</p><button class="btn gold" data-go="lessons-makkah">Open the timetable</button></div>';
-    var rest = C2.list.slice(1, 5);
-    if (rest.length) h += '<h2 class="gh">' + (C2.today ? 'Later today' : 'Also that day') + '</h2><div class="rows">' + rest.map(classRow).join('') + '</div>';
+    var mk = nextIn(C2.list, 'makkah');
+    var h = split('<div class="stext"><p class="skicker">Classes in Makkah</p>' + splitClass('makkah', C2) + (mk && (LES.masjid.makkah.places[mk.x.p] || {}).lat ? '<button class="sgo" data-act="show-place" data-m="makkah" data-p="' + esc(mk.x.p) + '">Show me where ›</button>' : '') + '</div>', splitClass('madinah', C2)) + '<section class="pad homepad">';
+    var rest = C2.list.slice(0, 5);
+    if (rest.length) h += '<h2 class="gh">' + (C2.today ? 'Today' : 'Coming up') + '</h2><div class="rows">' + rest.map(classRow).join('') + '</div>';
     h += '<button class="rowb solo" data-go="plan"><span class="ct"><b>My classes</b><small>' + (n ? n + ' chosen. Add them to your calendar' : 'Pick the classes you want to attend') + '</small></span><span class="chev">›</span></button>';
     h += '<div class="tiles">' + tile('lessons-makkah', '01', 'Makkah', 'Timetable and calendar') + tile('lessons-madinah', '02', 'Madinah', 'Timetable and calendar') + tile('maps', '03', 'Maps', 'Class spots and gates') + tile('duas', '04', 'My duas', S.duas.length ? S.duas.filter(function (x) { return !x.done; }).length + ' still to make' : 'Write them here') + '</div>';
     h += '<button class="rowb solo" data-go="help"><span class="ct"><b>Help</b><small>What to do when something goes wrong</small></span><span class="chev">›</span></button>';
@@ -349,10 +354,8 @@
       else if (seen < TOTAL) { small = 'Next: read the steps, ' + seen + ' of ' + TOTAL + ' read.'; to = 'umrah'; }
       else { small = 'You are ready. Start when you set out.'; btn = 'Open the steps'; to = 'umrah'; }
     }
-    var h = '<header class="top home"><p>Assalamu alaykum</p><h1>Haramain Path</h1><p class="tagl">Umrah guide, maps and today’s classes</p></header><section class="pad homepad">';
-    h += '<div class="hero">' + ring(pct, rb, rs) + '<div class="ht"><p class="hk">' + kick + '</p><p class="hb">' + esc(big) + '</p><p class="hs">' + esc(small) + '</p></div>' +
-      (to ? '<button class="btn gold" data-go="' + to + '">' + btn + '</button>' : '') +
-      (!S.date && !dn ? '<button class="lnk" data-go="setup">Add the date of your Umrah</button>' : '') + '</div>';
+    var h = split('<div class="stext"><p class="skicker">' + (to.indexOf('stage-') === 0 ? 'Step ' + nx + ' of ' + TOTAL : kick) + (rs === 'days to go' ? ' · ' + rb + ' days to go' : '') + '</p><div class="sline2"><p class="stitle' + ((to.indexOf('stage-') === 0 ? stage(nx).title : big).length > 12 ? ' long' : '') + '">' + esc(to.indexOf('stage-') === 0 ? stage(nx).title : big) + '</p>' + (to ? '<button class="sgo" data-go="' + to + '">' + (btn === 'Open the steps' ? 'Steps' : btn) + ' ›</button>' : '') + '</div></div>', splitClass('madinah', comingClasses())) + '<section class="pad homepad">';
+    h += '<p class="snote">' + esc(small) + '</p>' + (!S.date && !dn ? '<button class="lnk" data-go="setup">Add the date of your Umrah</button>' : '');
     if (started()) h += resetAsk();
     if (S.purpose === 'both') h += todayCard();
     h += '<div class="tiles">' + tile('umrah', '01', 'Umrah steps', !nx ? 'Complete' : S.live ? 'Step ' + nx + ' of ' + TOTAL : seen + ' of ' + TOTAL + ' read', (S.live ? dn : seen) / TOTAL) +
@@ -574,7 +577,8 @@
     R.look = n;
     var ph = stagePic(n), lines = storyLines(n), mine = waiting(STAGE_WHEN[n]);
     var h = '<section class="story' + (hasPic(ph) ? '' : ' nophoto') + '">';
-    h += '<div class="sphoto">' + (hasPic(ph) ? '<img src="p-' + ph + '.jpg" alt="' + esc(MEDIA.photos[ph].what || st.title) + '" style="object-position:' + (STORY_POS[ph] || '50% 50%') + (ph === 'kaaba' ? ';transform:translateY(-9%)' : '') + '">' : '<b aria-hidden="true">' + n + '</b>') + '</div>';
+    h += slash('stline', 99, 80) + '<p class="stbig" aria-hidden="true">' + (n < 10 ? '0' : '') + n + '</p><p class="star" lang="ar" dir="rtl">' + STEP_AR[n] + '</p>';
+    h += '<div class="sphoto">' + (hasPic(ph) ? '<img src="p-' + ph + '.jpg" alt="' + esc(MEDIA.photos[ph].what || st.title) + '" style="object-position:' + (STORY_POS[ph] || '50% 50%') + (ph === 'kaaba' ? ';transform:translateY(-9%)' : '') + '">' : '') + '</div>';
     h += '<div class="sdots">' + C.stages.map(function (x) { return '<button class="' + ((S.live ? S.done[x.id] : x.id < n) ? 'd' : '') + (x.id === n ? ' c' : '') + '" data-go="stage-' + x.id + '" aria-label="Step ' + x.id + ': ' + esc(x.title) + '"' + (x.id === n ? ' aria-current="step"' : '') + '></button>'; }).join('') + '</div>';
     h += '<div class="stop"><button class="pill" data-go="steps">All steps</button><button class="pill" data-go="prepare">Get ready</button><button class="pill" data-go="help">Help</button></div>';
     h += '<div class="stxt"><div class="skick"><p>Step ' + n + ' of ' + TOTAL + (S.live && S.done[n] ? ' · done' : '') + '</p>' + (n > 1 ? '<button data-go="stage-' + (n - 1) + '">‹ Step ' + (n - 1) + '</button>' : '') + '</div>';
@@ -964,7 +968,7 @@
   }
   var HAS3D = (function () { try { var c = document.createElement('canvas'); return !!(window.WebGLRenderingContext && (c.getContext('webgl') || c.getContext('experimental-webgl'))); } catch (e) { return false; } })();
   function is3d() { return HAS3D && !R.no3d && S.mapMode !== 'flat'; }
-  function isDark() { var t = document.documentElement.getAttribute('data-theme'); return t ? t === 'dark' : !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); }
+  function isDark() { return false; }  /* one look now: the maps and route diagrams are always drawn in daylight */
 
   /* The street map is drawn, not a photograph of a map, so it stays sharp however far you zoom.
      One set of colours for day and one for night; the same drawing is laid on the ground of the 3D view. */
@@ -1431,7 +1435,8 @@
         var list = L.filter(function (x) { return x.s === s[0]; }), on = false;
         if (!list.length) return;
         if (T && sel.i === 0) { var w = slotWindow(s[0], T); on = now >= w[0] && now <= w[1]; }
-        h += '<h2 class="slot"><span>After ' + s[1] + '</span>' + (T ? '<small>about <b>' + esc(clock(T[s[0]])) + '</b> Saudi time</small>' : '') + '</h2>';
+        var at = T ? clock(T[s[0]]).split(' ') : null;
+        h += '<h2 class="slot">' + (at ? '<b>' + esc(at[0]) + '<small>' + esc(at.slice(1).join(' ')) + '</small></b>' : '') + '<span>After ' + s[1] + (at ? '<small>about this time, Saudi</small>' : '') + '</span></h2>';
         list.forEach(function (x) { h += lessonHTML(m, x, on); });
       });
     }
@@ -1440,11 +1445,39 @@
   }
 
   /* ---------- drawing, moving between screens ---------- */
+  var STEP_AR = { 1: 'الاستعداد', 2: 'الميقات', 3: 'الإحرام', 4: 'دخول المسجد', 5: 'الطواف', 6: 'ركعتا الطواف', 7: 'زمزم', 8: 'السعي', 9: 'الحلق والتقصير', 10: 'تمت العمرة' };
+  var CITY_AR = { makkah: 'مكة', madinah: 'المدينة' }, CITY_PIC = { makkah: 'kaaba', madinah: 'nabawi' };
+  var PIC_POS = { kaaba: '33% 62%', nabawi: '62% 62%', miqat: '50% 40%', tanim: '50% 50%', gate: '50% 30%', rawdah: '50% 40%', umbrellas: '50% 40%', ihram: '50% 50%', maqam: '50% 40%', zamzam: '50% 55%', safa: '50% 40%', babsalam: '50% 30%' };
+  /* the gold line is the same one everywhere: it rises from left to right */
+  function slash(cls, y0, y1) { return '<svg class="' + cls + '" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><line x1="0" y1="' + y0 + '" x2="100" y2="' + y1 + '"/></svg>'; }
+  function headFor(r) {
+    if (r === 'prepare' || r.indexOf('prep-') === 0) return ['miqat', 'استعد'];
+    if (r === 'settings') return ['nabawi', 'الإعدادات'];
+    if (r === 'setup') return ['kaaba', 'أهلاً وسهلاً'];
+    if (r.indexOf('lessons-') === 0) { var m = r.slice(8); return CITY_AR[m] ? [CITY_PIC[m], CITY_AR[m]] : null; }
+    if (r === 'help' || r.indexOf('help-') === 0 || r === 'card') return ['gate', 'المساعدة'];
+    if (r === 'steps' || r.indexOf('lesson-') === 0) return ['kaaba', 'العمرة'];
+    if (r.indexOf('details-') === 0 || r.indexOf('where-') === 0) { var n = +r.split('-')[1]; return [stagePic(n) || 'kaaba', STEP_AR[n] || 'العمرة']; }
+    if (r === 'duas') return ['rawdah', 'أدعيتي'];
+    if (r === 'plan') return ['umbrellas', 'دروسي'];
+    if (r === 'floors-makkah') return ['kaaba', 'الطوابق'];
+    return null;
+  }
+  function addHead(r) {
+    var el = view.querySelector('header.top'), H = el && headFor(r);
+    if (!H || !hasPic(H[0])) return;
+    el.classList.add('c2head');
+    el.insertAdjacentHTML('afterbegin', '<span class="hphoto"><img src="p-' + H[0] + '.jpg" alt="" style="object-position:' + (PIC_POS[H[0]] || '50% 50%') + '"></span>' + slash('hline', 97, 70) + '<span class="har" lang="ar" dir="rtl">' + H[1] + '</span>');
+  }
+  /* which screens belong to Madinah, and so are green */
+  function isGreen(r) { return r === 'settings' || r === 'lessons-madinah' || r === 'map-madinah' || r.indexOf('teacher-madinah') === 0 || (r === 'maps' && S.masjid === 'madinah'); }
   function addChrome(r) {
+    addHead(r);
     if (r === 'setup' || r === 'help' || r.indexOf('help-') === 0) return;
     var where = view.querySelector('header.top') || view.querySelector('.mapbox');
     if (where) where.insertAdjacentHTML('beforeend', '<button class="helpbtn" data-go="help">Help</button>');
   }
+  var TAB_AR = { home: 'الرئيسية', umrah: 'العمرة', classes: 'الدروس', maps: 'الخرائط', settings: 'الإعدادات' };
   function render() {
     document.documentElement.setAttribute('data-size', String(S.size || 0));
     var r = S.setup ? R.route : 'setup', tab = 'home', h;
@@ -1475,6 +1508,8 @@
     document.documentElement.classList.toggle('mapfull', !!R.mapFull);
     if (r === 'home' && !R.popDone) { R.popDone = true; try { R.pop = upcoming(); } catch (e) { R.pop = null; } }
     document.documentElement.classList.toggle('storyon', r.indexOf('stage-') === 0);
+    document.documentElement.classList.toggle('green', isGreen(r));
+    document.documentElement.classList.toggle('homeon', r === 'home');
     view.innerHTML = h + (R.pop && (r === 'home' || r.indexOf('lessons-') === 0) ? popup() : '');
     addChrome(r);
     if (document.querySelector('img[data-doc]')) docPaint();
@@ -1489,7 +1524,7 @@
     if (tab === 'prepare') tab = 'umrah';
     if (tab === 'help') tab = 'none';
     var TL = forClasses() ? TABS_CLASSES : TABS_UMRAH;
-    tabs.innerHTML = tab ? TL.map(function (t) { var to = t[0] === 'classes' ? 'lessons-' + (S.masjid || 'makkah') : t[0]; return '<a href="#' + to + '" data-go="' + to + '"' + (t[0] === tab ? ' aria-current="page"' : '') + '>' + t[1] + '</a>'; }).join('') : '';
+    tabs.innerHTML = tab ? TL.map(function (t) { var to = t[0] === 'classes' ? 'lessons-' + (S.masjid || 'makkah') : t[0]; return '<a href="#' + to + '" data-go="' + to + '"' + (t[0] === tab ? ' aria-current="page"' : '') + '><i lang="ar" dir="rtl" aria-hidden="true">' + TAB_AR[t[0]] + '</i><span>' + t[1] + '</span></a>'; }).join('') : '';
   }
   var lock = null;
   function wake() {
