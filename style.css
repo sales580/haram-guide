@@ -448,3 +448,6 @@ html.mapfull #tabs { display: none; }
 .shead .btn { width: auto; min-height: 38px; padding: 0 16px; }
 .sheetcard .more { font-size: .88rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
 .sheetcard.left h3 { font-size: 1.2rem; }
+/* two quick taps on a button must not zoom the whole page (pinching still works) */
+html, body, button, a, .mapbox { touch-action: manipulation; }
+.map, canvas.map3d { touch-action: none; }

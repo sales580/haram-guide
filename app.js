@@ -189,7 +189,7 @@
     },
     enter: function () {
       return rmap([398, 382, 460, 528], 'Map of Masjid al-Haram with its main gates and the mataf in the middle.', function (u, c, dark) {
-        var h = '', k = KB.c, named = { '1': [0, 6.2, 'middle'], '79': [-3, -6.2, 'start'], '40': [0, -6.2, 'middle'], '25': [-4.5, 0, 'end'] };
+        var h = '', k = KB.c, named = { '1': [0, 6.2, 'middle'], '79': [-3, -6.2, 'start'], '62': [0, -6.2, 'middle'], '100': [0, -6.2, 'middle'], '25': [-4.5, 0, 'end'] };
         pinsOf('makkah').forEach(function (p) {
           if (p.k !== 'gate' || (p.z || 1) !== 1) return;
           var n = String(p.r).split(',')[0], nm = named[n];
@@ -206,7 +206,8 @@
       }, 100) + stops([
         ['1', 'King Abdulaziz Gate', 'On the south side, facing the Clock Tower.', 'gate'],
         ['79', 'King Fahd Gate', 'On the west side, the way in from the King Fahd expansion.', ''],
-        ['40', 'Umrah Gate', 'On the north-west side.', ''],
+        ['62', 'Umrah Gate', 'On the north-west side.', ''],
+        ['100', 'King Abdullah Gate', 'On the north side, into the newest expansion.', ''],
         ['25', 'Marwah Gate', 'At the north end of the mas‘a, where sa‘i finishes.', '']]);
     },
     journey: function () {
@@ -612,7 +613,9 @@
   var INSIDE = window.UMRAH_INSIDE || {};
   function pinsOf(m) {
     if (pinCache[m]) return pinCache[m];
-    var M = MAPS[m], out = M.pins.slice(), L = (LES.masjid[m] || {}).places || {};
+    var M = MAPS[m], IG = INSIDE[m] || {}, L = (LES.masjid[m] || {}).places || {};
+    var out = M.pins.map(function (p) { var f = null; (IG.gates || []).forEach(function (g) { if (p.k === 'gate' && p.n === g.n) f = g; }); if (!f) return p; var q = {}; Object.keys(p).forEach(function (k) { q[k] = p[k]; }); q.r = f.r; return q; });
+    (IG.addGates || []).forEach(function (g) { out.push({ k: 'gate', n: g.n, r: g.r, x: g.x, y: g.y, z: 1 }); });
     Object.keys(L).forEach(function (id) {
       var p = L[id]; if (!p.lat) return;
       var who = [], les = (LES.masjid[m] || {}).lessons || [];
@@ -800,9 +803,9 @@
      One set of colours for day and one for night; the same drawing is laid on the ground of the 3D view. */
   var PAL = {
     day: { land: '#F3F1EA', green: '#CFE5C6', plaza: '#ECE8DD', bld: '#E3DED1', bldLine: '#D3CCBB', case: '#D6D0C2', road: '#FFFFFF', foot: '#E2DCCD', text: '#6A6353', halo: '#F3F1EA',
-      mBld: '#FFF9E9', mExt: '#FBF3DC', mOpen: '#FFFFFF', mLine: '#B79743', mPlaza: '#EFEADF', mSvc: '#C9D2CC', mGreen: '#BFDDB6', rawdah: '#7DBE95', kaaba: '#1B1B1B', gold: '#B79743', zOld: '#F1DFA9', zFirst: '#FAEFCF', zMen: '#FFF9E9', zWomen: '#F5DCE7', zCourt: '#D9EAF3', zLine: '#C9B274' },
+      mBld: '#FFF9E9', mExt: '#FBF3DC', mOpen: '#FFFFFF', mLine: '#B79743', mPlaza: '#EFEADF', mSvc: '#C9D2CC', mGreen: '#BFDDB6', rawdah: '#7DBE95', kaaba: '#1B1B1B', gold: '#B79743', zOld: '#F1DFA9', zFirst: '#FAEFCF', zMen: '#FFF9E9', zWomen: '#F5DCE7', zCourt: '#D9EAF3', zNorth: '#E1ECD7', zLine: '#C9B274' },
     night: { land: '#151C19', green: '#1E3526', plaza: '#1C2521', bld: '#232C28', bldLine: '#313D37', case: '#151C19', road: '#34413B', foot: '#28322D', text: '#A9B6AE', halo: '#151C19',
-      mBld: '#3A3524', mExt: '#322E20', mOpen: '#4B4A43', mLine: '#CBAA4F', mPlaza: '#202A25', mSvc: '#3D4E45', mGreen: '#234029', rawdah: '#2F7B52', kaaba: '#050505', gold: '#CBAA4F', zOld: '#5A4E24', zFirst: '#463F26', zMen: '#3A3524', zWomen: '#4A3040', zCourt: '#27404D', zLine: '#8C7A45' }
+      mBld: '#3A3524', mExt: '#322E20', mOpen: '#4B4A43', mLine: '#CBAA4F', mPlaza: '#202A25', mSvc: '#3D4E45', mGreen: '#234029', rawdah: '#2F7B52', kaaba: '#050505', gold: '#CBAA4F', zOld: '#5A4E24', zFirst: '#463F26', zMen: '#3A3524', zWomen: '#4A3040', zCourt: '#27404D', zNorth: '#2F3E2C', zLine: '#8C7A45' }
   };
   function baseSVG(m, dark) {
     var B = (window.UMRAH_BASE || {})[m], M = MAPS[m], c = dark ? PAL.night : PAL.day, h = '<rect x="-3000" y="-3000" width="8000" height="8000" fill="' + c.land + '"/>';
@@ -813,17 +816,18 @@
       ['foot', 'minor', 'major'].forEach(function (k) { B.l.forEach(function (l) { if (l[0] === k) h += '<path d="' + l[1] + '" fill="none" stroke="' + (k === 'foot' ? c.foot : c.road) + '" stroke-width="' + W[k] + '" stroke-linecap="round" stroke-linejoin="round"/>'; }); });
     }
     var F = { plaza: c.mPlaza, green: c.mGreen, svc: c.mSvc, bld: c.mBld, ext: c.mExt, masaa: c.mExt, open: c.mOpen, rawdah: c.rawdah, kaaba: c.kaaba };
-    var IN = INSIDE[m], out = '';
+    var IN = INSIDE[m], out = '', cnt = {};
+    function fillOf(k) { var f = IN && IN.fills && IN.fills[k]; if (f) { var i = cnt[k] || 0; cnt[k] = i + 1; var tok = typeof f === 'string' ? f : f[i]; if (tok && c[tok]) return c[tok]; } return F[k] || c.mBld; }
     M.shapes.forEach(function (x) {
       var k = x[0];
       if (IN && k === 'women') return;
       if (k === 'women') h += '<path d="' + x[1] + '" fill="' + c.gold + '" fill-opacity="0.08" stroke="' + c.gold + '" stroke-width="1.5" stroke-dasharray="5 4"/>';
       else if (k === 'hijr') h += '<path d="' + x[1] + '" fill="none" stroke="' + c.mLine + '" stroke-width="1.5"/>';
-      else h += '<path fill-rule="evenodd" d="' + x[1] + '" fill="' + (F[k] || c.mBld) + '"' + (k === 'bld' || k === 'ext' || k === 'masaa' || k === 'open' ? ' stroke="' + c.mLine + '" stroke-width="1.2"' : '') + '/>';
+      else h += '<path fill-rule="evenodd" d="' + x[1] + '" fill="' + fillOf(k) + '"' + (k === 'bld' || k === 'ext' || k === 'masaa' || k === 'open' ? ' stroke="' + c.mLine + '" stroke-width="1.2"' : '') + '/>';
       if (IN && k === 'bld') {
         /* the sections inside, cut to the real outline of the building */
         var Z = { old: c.zOld, first: c.zFirst, men: c.zMen, women: c.zWomen, court: c.zCourt };
-        h += '<clipPath id="in-' + m + '"><path fill-rule="evenodd" d="' + x[1] + '"/></clipPath><g clip-path="url(#in-' + m + ')">' + IN.zones.map(function (z) {
+        h += '<clipPath id="in-' + m + '"><path fill-rule="evenodd" d="' + x[1] + '"/></clipPath><g clip-path="url(#in-' + m + ')">' + (IN.zones || []).map(function (z) {
           return '<rect x="' + z[2] + '" y="' + z[3] + '" width="' + (z[4] - z[2]) + '" height="' + (z[5] - z[3]) + '" fill="' + Z[z[0]] + '" stroke="' + c.zLine + '" stroke-width="' + (z[0] === 'court' ? 0.9 : 0.6) + '"' + (z[0] === 'court' ? ' rx="3"' : '') + '/>';
         }).join('') + '</g><path d="' + x[1] + '" fill="none" stroke="' + c.mLine + '" stroke-width="1.4"/>';
         if (IN.imamLine) out += '<path d="M' + IN.imamLine.x0 + ' ' + IN.imamLine.y + 'H388M490 ' + IN.imamLine.y + 'H' + IN.imamLine.x1 + '" stroke="' + c.gold + '" stroke-width="1" stroke-dasharray="5 4"/>';
@@ -854,16 +858,18 @@
       ['foot', 'minor', 'major'].forEach(function (kk) { B.l.forEach(function (l) { if (l[0] === kk) line(l[1], kk === 'foot' ? c.foot : c.road, WD[kk], null, 'round'); }); });
     }
     var F = { plaza: c.mPlaza, green: c.mGreen, svc: c.mSvc, bld: c.mBld, ext: c.mExt, masaa: c.mExt, open: c.mOpen, rawdah: c.rawdah, kaaba: c.kaaba };
+    var cnt = {};
+    function fillOf(k) { var f = IN && IN.fills && IN.fills[k]; if (f) { var i = cnt[k] || 0; cnt[k] = i + 1; var tok = typeof f === 'string' ? f : f[i]; if (tok && c[tok]) return c[tok]; } return F[k] || c.mBld; }
     M.shapes.forEach(function (x) {
       var kk = x[0];
       if (IN && kk === 'women') return;
       if (kk === 'women') { g.globalAlpha = 0.08; fill(x[1], c.gold); g.globalAlpha = 1; line(x[1], c.gold, 1.5, [5, 4]); }
       else if (kk === 'hijr') line(x[1], c.mLine, 1.5);
-      else { fill(x[1], F[kk] || c.mBld, true); if (kk === 'bld' || kk === 'ext' || kk === 'masaa' || kk === 'open') line(x[1], c.mLine, 1.2); }
+      else { fill(x[1], fillOf(kk), true); if (kk === 'bld' || kk === 'ext' || kk === 'masaa' || kk === 'open') line(x[1], c.mLine, 1.2); }
       if (IN && kk === 'bld') {
         var Z = { old: c.zOld, first: c.zFirst, men: c.zMen, women: c.zWomen, court: c.zCourt };
         g.save(); g.clip(new Path2D(x[1]), 'evenodd'); g.setLineDash([]);
-        IN.zones.forEach(function (z) { g.fillStyle = Z[z[0]]; g.fillRect(z[2], z[3], z[4] - z[2], z[5] - z[3]); g.strokeStyle = c.zLine; g.lineWidth = z[0] === 'court' ? 0.9 : 0.6; g.strokeRect(z[2], z[3], z[4] - z[2], z[5] - z[3]); });
+        (IN.zones || []).forEach(function (z) { g.fillStyle = Z[z[0]]; g.fillRect(z[2], z[3], z[4] - z[2], z[5] - z[3]); g.strokeStyle = c.zLine; g.lineWidth = z[0] === 'court' ? 0.9 : 0.6; g.strokeRect(z[2], z[3], z[4] - z[2], z[5] - z[3]); });
         g.restore(); line(x[1], c.mLine, 1.4);
       }
     });
@@ -888,7 +894,7 @@
     h += '<div class="mapbox tall' + (R.mapFull ? ' full' : '') + '">' + (d3 ? '<div id="map3d" class="map3dbox"><p class="maploading">Building the 3D view</p></div>' : flatSVG(m)) +
       (HAS3D && !R.no3d ? '<div class="mapmode"><button aria-pressed="' + d3 + '" data-act="mapmode" data-v="3d">3D</button><button aria-pressed="' + !d3 + '" data-act="mapmode" data-v="flat">Flat</button></div>' : '') +
       '<div class="zoom"><button data-act="zoom" data-v="1.7" aria-label="Zoom in">+</button><button data-act="zoom" data-v="0.59" aria-label="Zoom out">−</button></div><button class="fullbtn" data-act="map-full">' + (R.mapFull ? 'Close full screen' : 'Full screen') + '</button></div>';
-    if (INSIDE[m]) { var zc = isDark() ? PAL.night : PAL.day; h += '<div class="zonekey">' + [['zOld', 'Old mosque'], ['zFirst', 'First Saudi expansion'], ['zMen', 'Later expansions'], ['zWomen', 'Women’s sections'], ['zCourt', 'Open courts']].map(function (z) { return '<span><i style="background:' + zc[z[0]] + '"></i>' + z[1] + '</span>'; }).join('') + '</div><p class="hint">Sections follow the official visitor map of the Prophet’s Mosque (May 2025), placed here to within about 20 m. The dashed line in the south courtyard is level with the imam.</p>'; }
+    if (INSIDE[m] && INSIDE[m].key) { var zc = isDark() ? PAL.night : PAL.day; h += '<div class="zonekey">' + INSIDE[m].key.map(function (z) { return '<span><i style="background:' + zc[z[0]] + '"></i>' + esc(z[1]) + '</span>'; }).join('') + '</div><p class="hint">' + esc(INSIDE[m].note || '') + '</p>'; }
     h += '<div id="pininfo">' + pinInfo(m) + '</div>';
     h += '<div class="two"><button class="btn ghost small" data-act="zoom" data-v="0">Reset the view</button>' + (d3 ? '<button class="btn ghost small" data-act="tilt">' + (R.topView ? 'Angled view' : 'Top view') + '</button><button class="btn ghost small" data-act="inside">See inside</button>' : '') + '</div>';
     if (d3) h += '<p class="hint">Zoom in close, or press “See inside”, and the roofs lift away so you can see where each class sits.</p>';

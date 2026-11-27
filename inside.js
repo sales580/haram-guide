@@ -6,7 +6,30 @@
    zones: [kind, name, x0, y0, x1, y1]   kinds: old, first, men, women, court
    labels: [text, x, y, zoom]            marks: extra places shown as dots with a name */
 window.UMRAH_INSIDE = {
+  /* Masjid al-Haram. No official floor plan is published, so the parts of the building are the shapes volunteers
+     have mapped on OpenStreetMap, each given its own colour and name. Gate numbers, the five main gates and where the
+     services are come from the Ministry of Hajj and Umrah's "Grand Mosque Awareness Guide" (a copy is in source/official).
+     Each mark sits at the gate the guide names for it, so treat it as "near this gate", not an exact spot. */
+  makkah: {
+    zones: [],
+    fills: { bld: 'zFirst', ext: ['zNorth', 'zOld'], masaa: 'zCourt' },
+    key: [['zFirst', 'Old mosque and first Saudi expansion'], ['zOld', 'King Fahd expansion'], ['zNorth', 'King Abdullah expansion'], ['zCourt', 'Mas‘a (Safa to Marwah)'], ['mOpen', 'Mataf']],
+    note: 'The five main gates each have two minarets: 1 King Abdulaziz, 45 Al-Fath, 62 Umrah, 79 King Fahd and 100 King Abdullah. Gates with ramps: 68, 74, 79, 84, 89, 90, 93 and 94. Gate numbers and services follow the Ministry of Hajj’s Grand Mosque guide; the shapes come from OpenStreetMap. The Masjid has several floors and this map shows the ground level. Some smaller gate numbers may be older ones.',
+    labels: [['Old mosque', 628, 612, 2.6]],
+    gates: [{ n: 'Umrah Gate', r: '62' }, { n: 'Al-Fath Gate', r: '45' }],
+    addGates: [{ n: 'King Abdullah Gate', r: '100', x: 432, y: 439 }],
+    marks: [
+      { n: 'Ajyad Bridge, by Gate 4', s: 'Ajyad Bridge', x: 714, y: 886, z: 2, note: 'A bridge up to the first floor of the tawaf area. Free wheelchairs and golf carts are offered here.' },
+      { n: 'Al-Shubaika Bridge, by Gate 64', s: 'Shubaika Bridge', x: 478, y: 714, z: 2, note: 'A bridge into the King Fahd expansion from the western courtyard. Wheelchairs are offered here, and a luggage storage centre stands opposite Gate 64.' },
+      { n: 'Al-Arqam stairs, by Gate 16', s: 'Arqam stairs', x: 832, y: 730, z: 2.6, note: 'The way up to the first floor of the mas‘a.' },
+      { n: 'Hair cutting for men, next to Marwah Gate', s: 'Hair cutting', x: 797, y: 408, z: 2.2, note: 'Where sa‘i ends. The official guide places the men’s hair-cutting service directly next to Marwah Gate. For women it is offered at several places in the eastern courtyard.' },
+      { n: 'Prayer area for people with disabilities, Gate 68', s: 'Accessible prayer area', x: 452, y: 752, z: 3, note: 'King Fahd expansion, ground floor, next to the Al-Shubaika stairs. There is another on the first floor opposite Gate 91.' },
+      { n: 'Children’s hospitality centre, opposite Gates 100 to 104', s: 'Children’s centre', x: 404, y: 446, z: 3, note: 'In the King Abdullah (third Saudi) expansion. It is seasonal, so check that it is open.' }
+    ]
+  },
   madinah: {
+    key: [['zOld', 'Old mosque'], ['zFirst', 'First Saudi expansion'], ['zMen', 'Later expansions'], ['zWomen', 'Women’s sections'], ['zCourt', 'Open courts']],
+    note: 'Sections follow the official visitor map of the Prophet’s Mosque (May 2025), placed here to within about 20 m. The dashed line in the south courtyard is level with the imam.',
     zones: [
       ['men', 'Northern expansion', 325, 150, 492, 280],
       ['women', 'Women’s section (west)', 225, 150, 325, 280],
