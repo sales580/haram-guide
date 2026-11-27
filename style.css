@@ -749,3 +749,38 @@ a.rowb.fat { text-decoration: none; color: var(--ink); padding-block: 13px; }
 .rowb.fat b { font: 700 1.15rem/1.6 var(--arabic); text-align: right; }
 .rowb.fat small { font-size: .74rem; }
 .fdiff { padding: 10px 12px; border-left: 4px solid #F4C65B; background: rgba(244, 198, 91, .14); font-size: .9rem; font-weight: 600; }
+
+/* ---- the language buttons ---- */
+.langpick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; }
+.langpick button { min-height: 48px; padding: 0 4px; border: 0; background: rgba(255, 255, 255, .09); color: var(--ink); font-weight: 700; font-size: .92rem; clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); margin: 0 -3px; }
+.langpick button[aria-pressed="true"] { background: #F4C65B; color: #14100A; }
+
+/* ---- Arabic: the page reads from the right; maps and diagrams stay as they are drawn ---- */
+html[lang="ar"] * { letter-spacing: 0 !important; }
+html[lang="ar"]:root:root { --ui: "Inter", "Geeza Pro", "Noto Naskh Arabic", sans-serif; --display: "Amiri", "Geeza Pro", serif; }
+html[lang="ar"] #tabs a span { display: none; }
+html[lang="ar"] #tabs a i { font-size: 19px; }
+html[lang="ar"] .dua .tr, html[lang="ar"] .dua .en { display: none; }
+html[dir="rtl"] .mapbox, html[dir="rtl"] .fig svg, html[dir="rtl"] .rmap, html[dir="rtl"] .sline, html[dir="rtl"] .hline, html[dir="rtl"] .stline, html[dir="rtl"] .cals { direction: ltr; }
+html[dir="rtl"] .cals .cal { direction: rtl; }
+html[dir="rtl"] .rowb, html[dir="rtl"] .chk, html[dir="rtl"] .snext, html[dir="rtl"] .who2, html[dir="rtl"] .opt.why, html[dir="rtl"] .sheetcard.left, html[dir="rtl"] .smine, html[dir="rtl"] .tile, html[dir="rtl"] .chip, html[dir="rtl"] .idea, html[dir="rtl"] .lessoncard .who2 { text-align: right; }
+html[dir="rtl"] .c2head > .back { left: auto; right: 14px; }
+html[dir="rtl"] .helpbtn { right: auto; left: 14px; }
+html[dir="rtl"] .mapbox .helpbtn { left: 50%; }
+html[dir="rtl"] .har { right: auto; left: 16px; text-align: left; }
+html[dir="rtl"] .top h1, html[dir="rtl"] .top > p:not(.har) { align-self: flex-start; }
+html[dir="rtl"] .sbrand { left: auto; right: 20px; }
+html[dir="rtl"] .smk .sar { right: auto; left: 14px; }
+html[dir="rtl"] .smd .sar { left: auto; right: 16px; }
+html[dir="rtl"] .stbig, html[dir="rtl"] .star { right: auto; left: 14px; }
+/* in Arabic the titles sit on the right, so the cut under a page heading runs the other way */
+html[dir="rtl"] .hphoto { clip-path: polygon(0 0, 100% 0, 100% 97%, 0 70%); }
+html[dir="rtl"] .hline { transform: scaleX(-1); }
+html[dir="rtl"] .top.c2head h1 { margin-bottom: 4px; }
+/* French words run longer */
+html[lang="fr"] #tabs a { font-size: 9.5px; letter-spacing: 0; }
+html[lang="fr"] .seg3.four button { font-size: min(.62rem, 11.5px); letter-spacing: 0; }
+html[lang="fr"] .pill { font-size: .7rem; padding: 0 9px; line-height: 1.15; } html[lang="fr"] .stop { left: 10px; right: 10px; gap: 5px; }
+.langpick button[lang="ar"] { font-family: "Geeza Pro", "Amiri", "Noto Naskh Arabic", sans-serif; font-size: 1.05rem; }
+html[dir="rtl"] #tabs a:first-child { margin: 0 0 0 -6px; clip-path: polygon(13px 0, 100% 0, 100% 100%, 0 100%); }
+html[dir="rtl"] #tabs a:last-child { margin: 0 -6px 0 0; clip-path: polygon(0 0, 100% 0, calc(100% - 13px) 100%, 0 100%); }

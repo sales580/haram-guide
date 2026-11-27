@@ -4,7 +4,7 @@
   'use strict';
   var C = window.UMRAH_CONTENT, ENV = window.UMRAH_ENV || {};
   var KEY = 'umrahCompanion.v1';
-  var DEF = { setup: false, gender: '', school: '', route: '', date: '', size: 0, checks: {}, read: {}, done: {}, live: false, tawaf: 0, sai: 0, duas: [], card: {}, masjid: '', mapMode: '3d', plan: {}, docs: [], hotel: {}, purpose: '' };
+  var DEF = { setup: false, gender: '', school: '', route: '', date: '', size: 0, checks: {}, read: {}, done: {}, ui: '', live: false, tawaf: 0, sai: 0, duas: [], card: {}, masjid: '', mapMode: '3d', plan: {}, docs: [], hotel: {}, purpose: '' };
   function fresh() { return JSON.parse(JSON.stringify(DEF)); }
 
   /* Everything the pilgrim enters stays on this phone (localStorage). Nothing is sent anywhere. */
@@ -50,6 +50,23 @@
   function pairs(o) { return Object.keys(o).map(function (k) { return [k, o[k]]; }); }
   function toast(m) { toastEl.textContent = m; toastEl.className = 'show'; clearTimeout(toast.t); toast.t = setTimeout(function () { toastEl.className = ''; }, 2800); }
   function buzz(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
+
+  var TR = window.UMRAH_T || { lang: 'en', t: function (x) { return x; }, langs: [], locale: { day: 'en-GB', clock: 'en-US' }, start: function () {} };
+  /* in Arabic, the class titles, teachers and places are shown in their original Arabic, not in a translation */
+  function arabicFirst(L) {
+    if (TR.lang !== 'ar' || !L || !L.masjid) return L;
+    Object.keys(L.masjid).forEach(function (m) {
+      var D = L.masjid[m];
+      (D.lessons || []).forEach(function (x) { if (x.ar) x.en = ''; });
+      [D.teachers || {}, D.places || {}].forEach(function (o) { Object.keys(o).forEach(function (k) { if (o[k].ar) o[k].en = ''; }); });
+    });
+    return L;
+  }
+  function langPick() {
+    if (TR.langs.length < 2) return '';
+    return '<div class="langpick" data-noi18n>' + TR.langs.map(function (l) { return '<button data-act="ui-lang" data-v="' + l[0] + '" aria-pressed="' + (TR.lang === l[0]) + '" lang="' + l[0] + '">' + l[1] + '</button>'; }).join('') + '</div>' +
+      (TR.lang !== 'en' ? '<p class="credit">' + 'This translation has not been checked by a fluent reviewer or a scholar yet.' + '</p>' : '');
+  }
 
   /* ---------- pictures: real photographs of the places, and the teachers' official portraits ---------- */
   var MEDIA = window.UMRAH_MEDIA || { photos: {}, teachers: [], basemap: {} };
@@ -238,6 +255,7 @@
   function vSetup() {
     var h = top(S.setup ? 'Your details' : 'Assalamu alaykum', S.setup ? 'settings' : '', S.setup ? 'Change any answer' : 'Welcome') + '<section class="pad">';
     var pur = S.purpose || (S.setup ? 'both' : '');
+    if (!S.setup) h += langPick();
     if (!S.setup) h += '<p class="lead">A few taps, so you only see what applies to you. You can change this at any time.</p>';
     if (!S.setup) h += '<p class="draft">' + esc(C.draftNote) + '</p>';
     h += '<h2 class="q">What brings you here?</h2><div class="whys">' + PURPOSES.map(function (x) { return '<button class="opt why" data-act="set" data-k="purpose" data-v="' + x[0] + '" aria-pressed="' + (pur === x[0]) + '"><b>' + x[1] + '</b><small>' + x[2] + '</small></button>'; }).join('') + '</div>';
@@ -308,6 +326,7 @@
   function vSettings() {
     var h = top('Settings', '', 'Make it fit you') + '<section class="pad">';
     h += '<div class="me"><div class="line"><p>' + esc(forClasses() ? 'Here for the classes' : details() || 'Not answered yet') + '</p><button class="btn ghost small" data-go="setup">Change</button></div></div>';
+    if (TR.langs.length > 1) h += '<h2 class="gh">Language</h2>' + langPick();
     h += '<div class="me"><div class="line"><p>Text size</p><div class="sz">' + [0, 1, 2].map(function (i) {
       return '<button class="s' + i + '" data-act="size" data-v="' + i + '" aria-pressed="' + (S.size === i) + '" aria-label="' + ['Normal text', 'Large text', 'Largest text'][i] + '">A</button>';
     }).join('') + '</div></div></div>';
@@ -800,8 +819,8 @@
     var L = (LES.masjid[m] || {}).lessons || [], have = {}, out = [];
     L.forEach(function (x) { have[x.d] = (have[x.d] || 0) + 1; });
     if (!HIJRI) return Object.keys(have).sort().map(function (k) { return { key: k, label: +k.slice(8) + '/' + +k.slice(5, 7), sub: k.slice(0, 4) + ' AH', i: -1, n: have[k], date: null }; });
-    var wd = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Riyadh', weekday: 'short', day: 'numeric', month: 'short' });
-    var hj = new Intl.DateTimeFormat('en-GB-u-ca-islamic-umalqura-nu-latn', { timeZone: 'Asia/Riyadh', day: 'numeric', month: 'long' });
+    var wd = new Intl.DateTimeFormat(TR.locale.day, { timeZone: 'Asia/Riyadh', weekday: 'short', day: 'numeric', month: 'short' });
+    var hj = new Intl.DateTimeFormat(TR.locale.day.split('-u-')[0] + '-u-ca-islamic-umalqura-nu-latn', { timeZone: 'Asia/Riyadh', day: 'numeric', month: 'long' });
     for (var i = 0; i < 21; i++) {
       var d = saudiDay(i), k = hijriKey(d);
       if (have[k]) out.push({ key: k, label: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : wd.format(d), sub: i < 2 ? wd.format(d) : hj.format(d), i: i, n: have[k], date: d });
@@ -857,7 +876,7 @@
     var b = s === 'fajr' ? +T.sunrise + 30 * M : s === 'dhuhr' ? Math.min(+T.dhuhr + 100 * M, +T.asr - 10 * M) : s === 'asr' ? +T.maghrib - 5 * M : s === 'maghrib' ? +T.isha - 5 * M : +T.isha + 100 * M;
     return [a, b];
   }
-  function clock(d) { return new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Riyadh', hour: 'numeric', minute: '2-digit' }).format(d); }
+  function clock(d) { return new Intl.DateTimeFormat(TR.locale.clock, { timeZone: 'Asia/Riyadh', hour: 'numeric', minute: '2-digit' }).format(d); }
 
   /* the map */
   /* the four glossy map icons: defined once for the whole page, then used by the buttons and both maps */
@@ -1423,7 +1442,7 @@
     h += '<div class="cals" id="cals">';
     months.forEach(function (mk, mi) {
       var y = +mk.split('-')[0], mo = +mk.split('-')[1], first = new Date(Date.UTC(y, mo - 1, 1)).getUTCDay(), len = new Date(Date.UTC(y, mo, 0)).getUTCDate(), i;
-      h += '<div class="cal"' + (mk === selM ? ' data-cur="1"' : '') + '><div class="calt"><button class="calb" data-act="cal-go" data-v="-1" aria-label="Previous month"' + (mi === 0 ? ' disabled' : '') + '>‹</button><p class="calh">' + MN[mo - 1] + ' ' + y + '</p><button class="calb" data-act="cal-go" data-v="1" aria-label="Next month"' + (mi === months.length - 1 ? ' disabled' : '') + '>›</button></div><div class="calg">' + ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(function (w) { return '<span class="cw">' + w + '</span>'; }).join('');
+      h += '<div class="cal"' + (mk === selM ? ' data-cur="1"' : '') + '><div class="calt"><button class="calb" data-act="cal-go" data-v="-1" aria-label="Previous month"' + (mi === 0 ? ' disabled' : '') + '>‹</button><p class="calh">' + MN[mo - 1] + ' ' + y + '</p><button class="calb" data-act="cal-go" data-v="1" aria-label="Next month"' + (mi === months.length - 1 ? ' disabled' : '') + '>›</button></div><div class="calg">' + [0, 1, 2, 3, 4, 5, 6].map(function (d) { return new Intl.DateTimeFormat(TR.locale.day.split('-u-')[0], { weekday: 'narrow', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, 10, 1 + d))); }).map(function (w) { return '<span class="cw">' + w + '</span>'; }).join('');
       for (i = 0; i < first; i++) h += '<span></span>';
       for (i = 1; i <= len; i++) {
         var e = by[y + '-' + mo + '-' + i], isT = +today.year === y && +today.month === mo && +today.day === i, cls = 'cd' + (isT ? ' today' : '');
@@ -1440,7 +1459,7 @@
     var ds = days(m), sel = null, when = LES.read || '';
     ds.forEach(function (d) { if (d.key === R.day[m]) sel = d; });
     if (!sel) sel = ds[0] || null;
-    try { when = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(LES.read)); } catch (e) {}
+    try { when = new Intl.DateTimeFormat(TR.locale.day, { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(LES.read)); } catch (e) {}
     var h = top('Classes', '', MAPS[m].title) + '<section class="pad">' + masjidHead(m, 'lessons');
     h += '<button class="rowb solo" data-go="plan"><span class="ct"><b>My classes</b><small>' + (planCount() ? planCount() + ' chosen. Add them to your calendar' : 'Pick the lessons you want and add them to your calendar') + '</small></span><span class="chev">›</span></button>';
     if (!sel) h += '<div class="card"><h3>This saved schedule has ended</h3><p>Open the official schedule for today’s lessons. The usual lesson places are still marked on the map.</p></div>';
@@ -1571,6 +1590,7 @@
       S.setup = true; R.popDone = false; save(); go('home');
     }
     else if (a === 'purpose-both') { if (S.purpose === 'classes' || !S.purpose) S.purpose = 'both'; save(); if (S.gender && S.school && S.route) go('home'); else go('setup'); }
+    else if (a === 'ui-lang') { S.ui = t.getAttribute('data-v'); save(); try { window.location.reload(); } catch (e) {} }
     else if (a === 'size') { S.size = +t.getAttribute('data-v'); save(); render(); }
     else if (a === 'check') { var id = t.getAttribute('data-id'); S.checks[id] = !S.checks[id]; save(); render(); }
     else if (a === 'dua-add') {
@@ -1677,12 +1697,14 @@
   /* ---------- start ---------- */
   var h0 = ''; try { h0 = location.hash.slice(1); } catch (e) {}
   if (h0 && ROUTE.test(h0)) R.route = h0;
+  arabicFirst(LES);
   render(); wake();
+  TR.start();
 
   /* A newer lesson schedule, when the app sits on its own web address and the phone is online. The saved copy is used otherwise. */
   if (!ENV.preview && (ENV.lessonsUrl || /^https?:$/.test(location.protocol)) && window.fetch) {
     fetch(ENV.lessonsUrl || 'lessons.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
-      if (d && d.read && d.masjid && d.read > (LES.read || '')) { LES = d; pinCache = {}; if (/^(home|maps|map-|lessons-)/.test(R.route)) render(); }
+      if (d && d.read && d.masjid && d.read > (LES.read || '')) { LES = arabicFirst(d); pinCache = {}; if (/^(home|maps|map-|lessons-)/.test(R.route)) render(); }
     }).catch(function () {});
   }
 
