@@ -177,14 +177,14 @@
     list.forEach(function (q) {
       var p = q.p, near = p.k === 'place' ? 46 : 21;
       if (!q.sel && p.k !== 'lesson') {
-        for (var j = 0; j < kept.length; j++) if (kept[j].k === p.k && Math.abs(kept[j].x - q.s[0]) < near && Math.abs(kept[j].y - q.s[1]) < near * (p.k === 'place' ? 0.4 : 1)) return;
+        for (var j = 0; j < kept.length; j++) if (kept[j].k === p.k && kept[j].g === p.g && Math.abs(kept[j].x - q.s[0]) < near && Math.abs(kept[j].y - q.s[1]) < near * (p.k === 'place' ? 0.4 : 1)) return;
       }
-      kept.push({ k: p.k, x: q.s[0], y: q.s[1] });
+      kept.push({ k: p.k, g: p.g, x: q.s[0], y: q.s[1] });
       var num = String(p.r || '').split(',')[0];
       var text = p.k === 'gate' || p.k === 'cg' ? num : p.k === 'wudu' ? 'W' : p.k === 'help' ? 'H' : p.k === 'lesson' ? 'L' : (p.s || p.n);
       if (p.k === 'lesson' && p.img) { html += '<button class="pin3 k-face' + (q.sel ? ' sel' : '') + '" data-pin="' + q.i + '" style="left:' + q.s[0].toFixed(1) + 'px;top:' + q.s[1].toFixed(1) + 'px" aria-label="' + esc(p.n) + '"><img src="' + p.img + '" alt=""></button>'; return; }
       var pic = p.k === 'wudu' || p.k === 'help' || p.k === 'lesson' || (p.k === 'gate' && !num);  /* gates with a number keep the number */
-      html += '<button class="pin3 k-' + p.k + (pic ? ' ic' : '') + (q.sel ? ' sel' : '') + (p.big ? ' big' : '') + '" data-pin="' + q.i + '" style="left:' + q.s[0].toFixed(1) + 'px;top:' + q.s[1].toFixed(1) + 'px" aria-label="' + esc(p.n) + '">' + (pic ? '<svg viewBox="0 0 64 64"><use href="#ic-' + p.k + '"/></svg>' : '<span>' + esc(text) + '</span>') + '</button>';
+      html += '<button class="pin3 k-' + p.k + (pic ? ' ic' : '') + (q.sel ? ' sel' : '') + (p.big ? ' big' : '') + '" data-pin="' + q.i + '" style="left:' + q.s[0].toFixed(1) + 'px;top:' + q.s[1].toFixed(1) + 'px" aria-label="' + esc(p.n) + '">' + (pic ? '<svg viewBox="0 0 64 64"><use href="#ic-' + (p.k === 'wudu' && p.g ? 'wc-' + p.g : p.k) + '"/></svg>' + (p.k === 'wudu' && num ? '<em>' + esc(num) + '</em>' : '') : '<span>' + esc(text) + '</span>') + '</button>';
     });
     if (o.me && o.nav) {
       var a1 = v.set(o.me.x - c[0], 2, o.me.y - c[1]).project(V.camera).clone(), a2 = v.set(o.nav.x - c[0], 2, o.nav.y - c[1]).project(V.camera).clone();
