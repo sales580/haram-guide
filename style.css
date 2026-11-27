@@ -736,3 +736,16 @@ html.storyon #app { background: #0E0C0B; }
 @media (max-height: 760px) { .story { --cutline: 38vh; --cutline: 38dvh; } .star { font-size: 2.5rem; top: calc(var(--sat) + var(--stick) + 78px); } .stbig { font-size: 92px; top: calc(var(--cutline) - 122px); } .story h1 { font-size: 2.2rem; } }
 .top.c2head { min-height: calc(230px + var(--sat)); }
 .har { top: calc(var(--sat) + var(--stick) + 52px); font-size: 2.5rem; }
+/* class visitors: a smaller Arabic name, so the class and its button never run into it */
+.smk:has(.stext.classes) .sar { font-size: 68px; }
+.stext.classes .snext { margin: 2px 0 8px; }
+.stext.classes .snext b { font-size: 1.15rem; }
+.stext.classes .snext .face { width: 52px; height: 52px; }
+.stext.classes .sgo { min-height: 40px; }
+.navfloor { padding: 8px 12px; border-left: 4px solid #F4C65B; background: rgba(244, 198, 91, .14); }
+/* fatwa links */
+.fatwas { display: flex; flex-direction: column; gap: 8px; }
+a.rowb.fat { text-decoration: none; color: var(--ink); padding-block: 13px; }
+.rowb.fat b { font: 700 1.15rem/1.6 var(--arabic); text-align: right; }
+.rowb.fat small { font-size: .74rem; }
+.fdiff { padding: 10px 12px; border-left: 4px solid #F4C65B; background: rgba(244, 198, 91, .14); font-size: .9rem; font-weight: 600; }
