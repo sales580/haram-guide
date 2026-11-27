@@ -479,6 +479,7 @@
   var pinCache = {};
   var HIJRI = (function () { try { return new Intl.DateTimeFormat('en-u-ca-islamic-umalqura').resolvedOptions().calendar === 'islamic-umalqura'; } catch (e) { return false; } })();
 
+  var INSIDE = window.UMRAH_INSIDE || {};
   function pinsOf(m) {
     if (pinCache[m]) return pinCache[m];
     var M = MAPS[m], out = M.pins.slice(), L = (LES.masjid[m] || {}).places || {};
@@ -488,8 +489,10 @@
       les.forEach(function (x) { if (x.p === id && who.indexOf(x.t) < 0) who.push(x.t); });
       out.push({ k: 'lesson', n: p.en || p.ar, a: p.ar, x: (p.lon - M.proj.lonW) * M.proj.kx, y: (M.proj.latN - p.lat) * M.proj.ky, z: 1, pid: id, near: p.near, floor: p.floor, who: who, img: who.length && MEDIA.teachers.indexOf(m + '-' + who[0]) >= 0 ? 't-' + m + '-' + who[0] + '.jpg' : '' });
     });
+    ((INSIDE[m] || {}).marks || []).forEach(function (k) { out.push({ k: 'place', n: k.n, s: k.s, x: k.x, y: k.y, z: k.z, note: k.note }); });
     return (pinCache[m] = out);
   }
+  function labelsOf(m) { return MAPS[m].labels.concat((INSIDE[m] || {}).labels || []); }
   function mapState(m) {
     var M = MAPS[m];
     if (!R.map || R.map.m !== m) R.map = { m: m, k: M.start.k, cx: M.start.cx, cy: M.start.cy, sel: -1, me: null };
@@ -554,7 +557,7 @@
       return '<text class="' + cls + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" font-size="' + n(size) + '"' + (halo ? ' stroke-width="' + n(3) + '"' : '') + ' text-anchor="middle" dominant-baseline="central">' + esc(txt) + '</text>';
     }
     var labels = [], boxes = [];
-    M.labels.forEach(function (l) { if (st.k >= (l[3] || 1) && st.k < 6) labels.push([1.5, l[1], l[2], 11, l[0], 't-area']); });
+    labelsOf(m).forEach(function (l) { if (st.k >= (l[3] || 1) && st.k < 9) labels.push([1.5, l[1], l[2], 11, l[0], 't-area']); });
     var list = P.map(function (p, i) { return { p: p, i: i }; }).filter(function (o) {
       var p = o.p;
       if (o.i === st.sel) return true;
@@ -645,9 +648,9 @@
      One set of colours for day and one for night; the same drawing is laid on the ground of the 3D view. */
   var PAL = {
     day: { land: '#F3F1EA', green: '#CFE5C6', plaza: '#ECE8DD', bld: '#E3DED1', bldLine: '#D3CCBB', case: '#D6D0C2', road: '#FFFFFF', foot: '#E2DCCD', text: '#6A6353', halo: '#F3F1EA',
-      mBld: '#FFF9E9', mExt: '#FBF3DC', mOpen: '#FFFFFF', mLine: '#B79743', mPlaza: '#EFEADF', mSvc: '#C9D2CC', mGreen: '#BFDDB6', rawdah: '#7DBE95', kaaba: '#1B1B1B', gold: '#B79743' },
+      mBld: '#FFF9E9', mExt: '#FBF3DC', mOpen: '#FFFFFF', mLine: '#B79743', mPlaza: '#EFEADF', mSvc: '#C9D2CC', mGreen: '#BFDDB6', rawdah: '#7DBE95', kaaba: '#1B1B1B', gold: '#B79743', zOld: '#F1DFA9', zFirst: '#FAEFCF', zMen: '#FFF9E9', zWomen: '#F5DCE7', zCourt: '#D9EAF3', zLine: '#C9B274' },
     night: { land: '#151C19', green: '#1E3526', plaza: '#1C2521', bld: '#232C28', bldLine: '#313D37', case: '#151C19', road: '#34413B', foot: '#28322D', text: '#A9B6AE', halo: '#151C19',
-      mBld: '#3A3524', mExt: '#322E20', mOpen: '#4B4A43', mLine: '#CBAA4F', mPlaza: '#202A25', mSvc: '#3D4E45', mGreen: '#234029', rawdah: '#2F7B52', kaaba: '#050505', gold: '#CBAA4F' }
+      mBld: '#3A3524', mExt: '#322E20', mOpen: '#4B4A43', mLine: '#CBAA4F', mPlaza: '#202A25', mSvc: '#3D4E45', mGreen: '#234029', rawdah: '#2F7B52', kaaba: '#050505', gold: '#CBAA4F', zOld: '#5A4E24', zFirst: '#463F26', zMen: '#3A3524', zWomen: '#4A3040', zCourt: '#27404D', zLine: '#8C7A45' }
   };
   function baseSVG(m, dark) {
     var B = (window.UMRAH_BASE || {})[m], M = MAPS[m], c = dark ? PAL.night : PAL.day, h = '<rect x="-3000" y="-3000" width="8000" height="8000" fill="' + c.land + '"/>';
@@ -658,12 +661,23 @@
       ['foot', 'minor', 'major'].forEach(function (k) { B.l.forEach(function (l) { if (l[0] === k) h += '<path d="' + l[1] + '" fill="none" stroke="' + (k === 'foot' ? c.foot : c.road) + '" stroke-width="' + W[k] + '" stroke-linecap="round" stroke-linejoin="round"/>'; }); });
     }
     var F = { plaza: c.mPlaza, green: c.mGreen, svc: c.mSvc, bld: c.mBld, ext: c.mExt, masaa: c.mExt, open: c.mOpen, rawdah: c.rawdah, kaaba: c.kaaba };
+    var IN = INSIDE[m], out = '';
     M.shapes.forEach(function (x) {
       var k = x[0];
+      if (IN && k === 'women') return;
       if (k === 'women') h += '<path d="' + x[1] + '" fill="' + c.gold + '" fill-opacity="0.08" stroke="' + c.gold + '" stroke-width="1.5" stroke-dasharray="5 4"/>';
       else if (k === 'hijr') h += '<path d="' + x[1] + '" fill="none" stroke="' + c.mLine + '" stroke-width="1.5"/>';
       else h += '<path fill-rule="evenodd" d="' + x[1] + '" fill="' + (F[k] || c.mBld) + '"' + (k === 'bld' || k === 'ext' || k === 'masaa' || k === 'open' ? ' stroke="' + c.mLine + '" stroke-width="1.2"' : '') + '/>';
+      if (IN && k === 'bld') {
+        /* the sections inside, cut to the real outline of the building */
+        var Z = { old: c.zOld, first: c.zFirst, men: c.zMen, women: c.zWomen, court: c.zCourt };
+        h += '<clipPath id="in-' + m + '"><path fill-rule="evenodd" d="' + x[1] + '"/></clipPath><g clip-path="url(#in-' + m + ')">' + IN.zones.map(function (z) {
+          return '<rect x="' + z[2] + '" y="' + z[3] + '" width="' + (z[4] - z[2]) + '" height="' + (z[5] - z[3]) + '" fill="' + Z[z[0]] + '" stroke="' + c.zLine + '" stroke-width="' + (z[0] === 'court' ? 0.9 : 0.6) + '"' + (z[0] === 'court' ? ' rx="3"' : '') + '/>';
+        }).join('') + '</g><path d="' + x[1] + '" fill="none" stroke="' + c.mLine + '" stroke-width="1.4"/>';
+        if (IN.imamLine) out += '<path d="M' + IN.imamLine.x0 + ' ' + IN.imamLine.y + 'H388M490 ' + IN.imamLine.y + 'H' + IN.imamLine.x1 + '" stroke="' + c.gold + '" stroke-width="1" stroke-dasharray="5 4"/>';
+      }
     });
+    h += out;
     if (B && B.p) h += '<path d="' + B.p + '" fill="none" stroke="' + c.mLine + '" stroke-opacity="0.45" stroke-width="0.7"/>';
     if (B) B.t.forEach(function (t) {
       h += '<text x="' + t[1] + '" y="' + t[2] + '" font-size="' + t[4] + '" font-family="Inter, Arial, sans-serif" font-weight="600" text-anchor="middle" dominant-baseline="central" fill="' + c.text + '" stroke="' + c.halo + '" stroke-width="1.6" stroke-linejoin="round" paint-order="stroke"' + (t[3] ? ' transform="rotate(' + t[3] + ' ' + t[1] + ' ' + t[2] + ')"' : '') + '>' + esc(t[0]) + '</text>';
@@ -688,6 +702,7 @@
     h += '<div class="mapbox">' + (d3 ? '<div id="map3d" class="map3dbox"><p class="maploading">Building the 3D view</p></div>' : flatSVG(m)) +
       (HAS3D && !R.no3d ? '<div class="mapmode"><button aria-pressed="' + d3 + '" data-act="mapmode" data-v="3d">3D</button><button aria-pressed="' + !d3 + '" data-act="mapmode" data-v="flat">Flat</button></div>' : '') +
       '<div class="zoom"><button data-act="zoom" data-v="1.7" aria-label="Zoom in">+</button><button data-act="zoom" data-v="0.59" aria-label="Zoom out">−</button></div></div>';
+    if (INSIDE[m]) { var zc = isDark() ? PAL.night : PAL.day; h += '<div class="zonekey">' + [['zOld', 'Old mosque'], ['zFirst', 'First Saudi expansion'], ['zMen', 'Later expansions'], ['zWomen', 'Women’s sections'], ['zCourt', 'Open courts']].map(function (z) { return '<span><i style="background:' + zc[z[0]] + '"></i>' + z[1] + '</span>'; }).join('') + '</div><p class="hint">Sections follow the official visitor map of the Prophet’s Mosque (May 2025), placed here to within about 20 m. The dashed line in the south courtyard is level with the imam.</p>'; }
     h += '<div id="pininfo">' + pinInfo(m) + '</div>';
     h += '<div class="two"><button class="btn ghost small" data-act="zoom" data-v="0">Reset the view</button>' + (d3 ? '<button class="btn ghost small" data-act="tilt">' + (R.topView ? 'Angled view' : 'Top view') + '</button><button class="btn ghost small" data-act="inside">See inside</button>' : '') + '</div>';
     if (d3) h += '<p class="hint">Zoom in close, or press “See inside”, and the roofs lift away so you can see where each class sits.</p>';
@@ -698,7 +713,7 @@
   }
   function mapOpts(m) {
     var st = R.map;
-    return { pins: pinsOf(m), labels: MAPS[m].labels, layers: R.layers, sel: st.sel, me: st.me, nav: R.nav && R.nav.m === m ? pinsOf(m)[R.nav.i] : null, dark: isDark(), ground: function (dark) { return groundSVG(m, dark); }, focus: st.focus, onSelect: function (i) { st.sel = i; if (R.redraw) R.redraw(); } };
+    return { pins: pinsOf(m), labels: labelsOf(m), layers: R.layers, sel: st.sel, me: st.me, nav: R.nav && R.nav.m === m ? pinsOf(m)[R.nav.i] : null, dark: isDark(), ground: function (dark) { return groundSVG(m, dark); }, focus: st.focus, onSelect: function (i) { st.sel = i; if (R.redraw) R.redraw(); } };
   }
   function mapSetup() {
     if (!R.map) return;
@@ -1204,8 +1219,8 @@
   render(); wake();
 
   /* A newer lesson schedule, when the app sits on its own web address and the phone is online. The saved copy is used otherwise. */
-  if (!ENV.preview && /^https?:$/.test(location.protocol) && window.fetch) {
-    fetch('lessons.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+  if (!ENV.preview && (ENV.lessonsUrl || /^https?:$/.test(location.protocol)) && window.fetch) {
+    fetch(ENV.lessonsUrl || 'lessons.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
       if (d && d.read && d.masjid && d.read > (LES.read || '')) { LES = d; pinCache = {}; if (/^(home|maps|map-|lessons-)/.test(R.route)) render(); }
     }).catch(function () {});
   }

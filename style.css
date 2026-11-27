@@ -413,3 +413,7 @@ input[type="text"], input[type="tel"], input[type="date"] { width: 100%; min-hei
 .calb { width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--page); color: var(--ink); font-size: 1.5rem; line-height: 1; }
 .calb[disabled] { opacity: .3; }
 .top.home .tagl { text-transform: none; letter-spacing: 0; font-weight: 500; font-size: .95rem; color: var(--band-muted); margin-top: 4px; }
+input[type="date"] { -webkit-appearance: none; appearance: none; min-width: 0; max-width: 100%; box-sizing: border-box; }
+.zonekey { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .82rem; color: var(--muted); padding: 0 4px; }
+.zonekey span { display: inline-flex; align-items: center; gap: 6px; }
+.zonekey i { width: 16px; height: 16px; border-radius: 5px; border: 1px solid var(--line); display: inline-block; }
