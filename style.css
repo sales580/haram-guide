@@ -520,3 +520,10 @@ html.storyon #app { padding-bottom: 0; background: #061610; }
 .sreset { margin-top: 6px; }
 .sreset > .btn.ghost { min-height: 42px; border: 0; color: #C7D8CE; font-size: .86rem; text-decoration: underline; }
 .sreset .card { color: var(--ink); }
+/* the time of day heads each group of classes, large enough to find while scrolling */
+.slot { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; margin-top: 8px; padding: 13px 16px; border-radius: 16px; background: var(--band); color: var(--band-ink); }
+.slot span { font-family: var(--display); font-weight: 400; font-size: 1.65rem; line-height: 1.15; }
+.slot small { font-size: .82rem; font-weight: 600; color: var(--band-muted); }
+.slot small b { font-size: 1.12rem; color: var(--gold-bright); }
+.credit { margin: 0; font-size: .74rem; line-height: 1.4; color: var(--muted); text-align: center; }
+.lessoncard .sh:empty { display: none; }
