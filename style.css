@@ -527,3 +527,11 @@ html.storyon #app { padding-bottom: 0; background: #061610; }
 .slot small b { font-size: 1.12rem; color: var(--gold-bright); }
 .credit { margin: 0; font-size: .74rem; line-height: 1.4; color: var(--muted); text-align: center; }
 .lessoncard .sh:empty { display: none; }
+/* glossy map icons */
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.chips .chip { min-height: 60px; gap: 10px; }
+.chip .sw { width: 38px; height: 38px; }
+.pin3.ic { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; transform: translate(-50%, -50%); filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .35)); }
+.pin3.ic.k-lesson { width: 34px; height: 34px; }
+.pin3.ic svg { display: block; width: 100%; height: 100%; }
+.pin use { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .3)); }

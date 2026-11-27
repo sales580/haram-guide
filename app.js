@@ -737,11 +737,7 @@
     return '<div class="seg2">' + ['makkah', 'madinah'].map(function (x) { return '<button aria-pressed="' + (x === m) + '" data-go="' + mode + '-' + x + '">' + CITY[x] + '</button>'; }).join('') + '</div>' +
       '<div class="' + (m === 'makkah' ? 'seg3' : 'seg2') + ' pick">' + (m === 'makkah' ? [['map', 'Map'], ['floors', 'Floors'], ['lessons', 'Classes']] : [['map', 'Map'], ['lessons', 'Classes']]).map(function (x) { return '<button aria-pressed="' + (x[0] === mode) + '" data-go="' + x[0] + '-' + m + '">' + x[1] + '</button>'; }).join('') + '</div>';
   }
-  function swatch(k) {
-    return '<svg class="sw" viewBox="0 0 16 16" aria-hidden="true">' + (k === 'gate' ? '<circle class="p-gate" cx="8" cy="8" r="7"/>' :
-      k === 'lesson' ? '<rect class="p-lesson" x="3" y="3" width="10" height="10" transform="rotate(45 8 8)"/>' :
-      k === 'wudu' ? '<rect class="p-wudu" x="2" y="2" width="12" height="12" rx="3"/>' : '<circle class="p-help" cx="8" cy="8" r="7"/>') + '</svg>';
-  }
+  function swatch(k) { return '<svg class="sw" viewBox="0 0 64 64" aria-hidden="true"><use href="#ic-' + k + '"/></svg>'; }
 
   /* dates and prayer times, always in Saudi time */
   function parts(fmt, d) { var o = {}; fmt.formatToParts(d).forEach(function (p) { o[p.type] = p.value; }); return o; }
@@ -828,6 +824,9 @@
   function clock(d) { return new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Riyadh', hour: 'numeric', minute: '2-digit' }).format(d); }
 
   /* the map */
+  /* the four glossy map icons: defined once for the whole page, then used by the buttons and both maps */
+  var ICONS = '<defs><linearGradient id="ic-gGreen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#45C98C"/><stop offset="1" stop-color="#0D6B43"/></linearGradient><linearGradient id="ic-gGold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE9A3"/><stop offset=".55" stop-color="#E0B24A"/><stop offset="1" stop-color="#A8791C"/></linearGradient><linearGradient id="ic-gWood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C8864B"/><stop offset="1" stop-color="#7A471F"/></linearGradient><linearGradient id="ic-gPage" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#EBDDBB"/></linearGradient><radialGradient id="ic-gWater" cx=".36" cy=".52" r=".75"><stop offset="0" stop-color="#BDF0FF"/><stop offset=".45" stop-color="#37AEEA"/><stop offset="1" stop-color="#0A5D9E"/></radialGradient><radialGradient id="ic-gRed" cx=".38" cy=".3" r=".8"><stop offset="0" stop-color="#FF9C8A"/><stop offset=".5" stop-color="#E0432F"/><stop offset="1" stop-color="#8E1D10"/></radialGradient><symbol id="ic-gate" viewBox="0 0 64 64"><ellipse cx="33" cy="58" rx="26" ry="4" fill="#000" opacity=".16"/><path d="M10 56V30C10 17 24 12 32 5c8 7 22 12 22 25v26z" fill="#6E4C0C" transform="translate(3 1)"/><path d="M10 56V30C10 17 24 12 32 5c8 7 22 12 22 25v26z" fill="url(#ic-gGold)"/><path d="M17 56V32c0-9 10-13 15-18 5 5 15 9 15 18v24z" fill="url(#ic-gGreen)"/><path d="M32 15v41" stroke="#06422A" stroke-width="2"/><circle cx="28" cy="40" r="2.4" fill="url(#ic-gGold)"/><circle cx="36" cy="40" r="2.4" fill="url(#ic-gGold)"/><path d="M19 33c0-7 7-11 12-15v10c-5 2-9 5-12 11z" fill="#fff" opacity=".28"/><rect x="6" y="54" width="52" height="5" rx="2" fill="url(#ic-gGold)"/></symbol><symbol id="ic-lesson" viewBox="0 0 64 64"><ellipse cx="32" cy="59" rx="25" ry="3.6" fill="#000" opacity=".16"/><path d="M13 58 38 34l8 3-22 22zM51 58 26 34l-8 3 22 22z" fill="url(#ic-gWood)"/><path d="M3 17c11-6 22-4 29 3 7-7 18-9 29-3l-3 27c-10-4-19-3-26 3-7-6-16-7-26-3z" fill="#0D5C3A"/><path d="M7 14c10-5 19-2 25 4v24c-6-5-15-7-23-4z" fill="url(#ic-gPage)"/><path d="M57 14c-10-5-19-2-25 4v24c6-5 15-7 23-4z" fill="url(#ic-gPage)"/><path d="M12 20c6-1 11 0 15 3M13 26c5-1 10 0 14 3M14 32c5-1 9 0 13 3M52 20c-6-1-11 0-15 3M51 26c-5-1-10 0-14 3M50 32c-5-1-9 0-13 3" stroke="#B3955A" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M32 18v25" stroke="#C9A24B" stroke-width="2"/></symbol><symbol id="ic-wudu" viewBox="0 0 64 64"><ellipse cx="32" cy="58" rx="18" ry="3.8" fill="#000" opacity=".16"/><path d="M32 3C41 18 52 28 52 39a20 20 0 0 1-40 0C12 28 23 18 32 3z" fill="url(#ic-gWater)"/><path d="M22 37c0-7 5-13 8-18-1 7-3 11-2 18 0 4-6 5-6 0z" fill="#fff" opacity=".75"/><path d="M45 43c-2 7-8 10-14 10 7 2 15-2 14-10z" fill="#fff" opacity=".4"/></symbol><symbol id="ic-help" viewBox="0 0 64 64"><ellipse cx="32" cy="59" rx="20" ry="3.6" fill="#000" opacity=".16"/><circle cx="34" cy="31" r="25" fill="#6E1408"/><circle cx="31" cy="29" r="25" fill="url(#ic-gRed)"/><ellipse cx="26" cy="15" rx="13" ry="7" fill="#fff" opacity=".35" transform="rotate(-22 26 15)"/><circle cx="31" cy="18" r="4.6" fill="#fff"/><rect x="26.5" y="25.5" width="9" height="20" rx="4" fill="#fff"/></symbol></defs>';
+  document.body.insertAdjacentHTML('beforeend', '<svg class="sprite" width="0" height="0" aria-hidden="true">' + ICONS + '</svg>');
   function pinsSVG(m, px) {
     var M = MAPS[m], st = R.map, v = Math.max(M.w, M.h) / st.k, u = v / px, P = pinsOf(m), h = '', x0 = st.cx - v / 2, y0 = st.cy - v / 2;
     var rank = { lesson: 0, gate: 1, place: 2, wudu: 3, help: 4, cg: 5 }, zrank = { cg: 0, help: 1, wudu: 2, gate: 3, lesson: 4, place: 5 }, kept = [];
@@ -835,6 +834,7 @@
     function t(x, y, size, cls, txt, halo) {
       return '<text class="' + cls + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" font-size="' + n(size) + '"' + (halo ? ' stroke-width="' + n(3) + '"' : '') + ' text-anchor="middle" dominant-baseline="central">' + esc(txt) + '</text>';
     }
+    function icon(k, x, y, size) { return '<use href="#ic-' + k + '" x="' + (x - size / 2 * u).toFixed(1) + '" y="' + (y - size / 2 * u).toFixed(1) + '" width="' + n(size) + '" height="' + n(size) + '"/>'; }
     var labels = [], boxes = [];
     labelsOf(m).forEach(function (l) { if (st.k >= (l[3] || 1) && st.k < 9) labels.push([1.5, l[1], l[2], 11, l[0], 't-area']); });
     var list = P.map(function (p, i) { return { p: p, i: i }; }).filter(function (o) {
@@ -858,12 +858,12 @@
       var p = o.p, i = o.i, sel = i === st.sel, x = p.x, y = p.y, num = String(p.r || '').split(',')[0];
       var g = '<g class="pin" data-pin="' + i + '">';
       if (sel) g += '<circle class="p-ring" cx="' + x + '" cy="' + y + '" r="' + n(17) + '" stroke-width="' + n(3) + '"/>';
-      if (p.k === 'gate') g += '<circle class="p-gate" cx="' + x + '" cy="' + y + '" r="' + n(p.z === 1 ? 10.5 : 9) + '"/>' + t(x, y, num.length > 2 ? 7.5 : 9.5, 't-on', num);
+      if (p.k === 'gate' && !num) g += icon('gate', x, y, 24);
+      else if (p.k === 'gate') g += '<circle class="p-gate" cx="' + x + '" cy="' + y + '" r="' + n(p.z === 1 ? 10.5 : 9) + '"/>' + t(x, y, num.length > 2 ? 7.5 : 9.5, 't-on', num);
       else if (p.k === 'cg') g += '<circle class="p-cg" cx="' + x + '" cy="' + y + '" r="' + n(9) + '" stroke-width="' + n(1.5) + '"/>' + t(x, y, 7, 't-cg', num);
-      else if (p.k === 'wudu') g += '<rect class="p-wudu" x="' + (x - 8 * u).toFixed(1) + '" y="' + (y - 8 * u).toFixed(1) + '" width="' + n(16) + '" height="' + n(16) + '" rx="' + n(4) + '"/>' + t(x, y, 9, 't-onw', 'W');
-      else if (p.k === 'help') g += '<circle class="p-help" cx="' + x + '" cy="' + y + '" r="' + n(8) + '"/>' + t(x, y, 9, 't-onh', 'H');
+      else if (p.k === 'wudu' || p.k === 'help') g += icon(p.k, x, y, p.k === 'wudu' ? 24 : 22);
       else if (p.k === 'lesson' && p.img) g += '<circle class="p-lesson" cx="' + x + '" cy="' + y + '" r="' + n(15) + '" stroke-width="' + n(2) + '"/><image href="' + p.img + '" x="' + (x - 13 * u).toFixed(1) + '" y="' + (y - 13 * u).toFixed(1) + '" width="' + n(26) + '" height="' + n(26) + '" preserveAspectRatio="xMidYMid slice" clip-path="circle(50%)"/>';
-      else if (p.k === 'lesson') g += '<rect class="p-lesson" x="' + (x - 8.5 * u).toFixed(1) + '" y="' + (y - 8.5 * u).toFixed(1) + '" width="' + n(17) + '" height="' + n(17) + '" stroke-width="' + n(1.5) + '" transform="rotate(45 ' + x + ' ' + y + ')"/>' + t(x, y, 9.5, 't-onl', 'L');
+      else if (p.k === 'lesson') g += icon('lesson', x, y, 30);
       else g += '<circle class="p-place" cx="' + x + '" cy="' + y + '" r="' + n(p.big ? 3 : 4) + '"/>';
       if (p.k === 'place') labels.push([sel ? 0 : p.big ? 1 : 3, x, y - 11 * u, p.big ? 12 : 10.5, p.s || p.n, 't-place']);
       else if (p.k !== 'lesson' && (sel || (p.k === 'gate' && p.z === 1 && st.k >= 2.4))) labels.push([sel ? 0 : 2, x, y + 18 * u, 10.5, p.n, 't-place']);
