@@ -25,8 +25,9 @@
   var TOTAL = C.stages.length;
   var CHECK = '<svg class="ck" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   var PLAY = '<svg class="pl" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
-  var TABS_UMRAH = [['home', 'Home'], ['prepare', 'Prepare'], ['learn', 'Learn'], ['perform', 'Perform'], ['classes', 'Classes'], ['maps', 'Maps'], ['help', 'Help']];
-  var TABS_CLASSES = [['home', 'Home'], ['classes', 'Classes'], ['maps', 'Maps'], ['help', 'Help']];
+  var TABS_UMRAH = [['home', 'Home'], ['umrah', 'Umrah'], ['classes', 'Classes'], ['maps', 'Maps']];
+  var TABS_CLASSES = [['home', 'Home'], ['classes', 'Classes'], ['maps', 'Maps']];
+  var UMRAH_PARTS = [['prepare', 'Prepare'], ['learn', 'Learn'], ['perform', 'Perform']];
   var ROUTE = /^(home|prepare|prep-duas|prep-card|learn|perform|help|card|setup|maps|map-makkah|map-madinah|lessons-makkah|lessons-madinah|floors-makkah|plan|prep-docs|doc-\d+|count-tawaf|count-sai|duas|teacher-makkah-\d+|teacher-madinah-\d+|lesson-[a-z]+|read-\d+|stage-\d+|help-[a-z]+)$/;
 
   /* ---------- small helpers ---------- */
@@ -1391,6 +1392,14 @@
   }
 
   /* ---------- drawing, moving between screens ---------- */
+  function addChrome(r) {
+    var part = r === 'prepare' || r.indexOf('prep-') === 0 ? 'prepare' : r === 'learn' ? 'learn' : r === 'perform' ? 'perform' : '';
+    var sec = view.querySelector('section.pad');
+    if (part && sec) sec.insertAdjacentHTML('afterbegin', '<div class="seg3 pick umrahsw">' + UMRAH_PARTS.map(function (x) { return '<button aria-pressed="' + (x[0] === part) + '" data-go="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>');
+    if (r === 'setup' || r === 'help' || r.indexOf('help-') === 0) return;
+    var where = view.querySelector('header.top') || view.querySelector('.mapbox');
+    if (where) where.insertAdjacentHTML('beforeend', '<button class="helpbtn" data-go="help">Help</button>');
+  }
   function render() {
     document.documentElement.setAttribute('data-size', String(S.size || 0));
     var r = S.setup ? R.route : 'setup', tab = 'home', h;
@@ -1417,6 +1426,7 @@
     document.documentElement.classList.toggle('mapfull', !!R.mapFull);
     if (r === 'home' && !R.popDone) { R.popDone = true; try { R.pop = upcoming(); } catch (e) { R.pop = null; } }
     view.innerHTML = h + (R.pop && (r === 'home' || r.indexOf('lessons-') === 0) ? popup() : '');
+    addChrome(r);
     if (document.querySelector('img[data-doc]')) docPaint();
     var cals = document.getElementById('cals'), curM = cals ? cals.querySelector('[data-cur]') : null;
     if (curM) cals.scrollLeft = curM.offsetLeft - cals.offsetLeft;
@@ -1425,9 +1435,11 @@
     if (window.UMRAH_3D && !document.getElementById('map3d')) window.UMRAH_3D.hide();
     tabs.hidden = !tab;
     if (r.indexOf('lessons-') === 0 || r === 'plan' || r.indexOf('teacher-') === 0) tab = 'classes';
+    /* Prepare, Learn and Perform live together under one Umrah tab; Help is a button at the top */
+    if (tab === 'prepare' || tab === 'learn' || tab === 'perform') { R.umrahPart = tab; tab = 'umrah'; }
+    if (tab === 'help') tab = 'none';
     var TL = forClasses() ? TABS_CLASSES : TABS_UMRAH;
-    tabs.classList.toggle('many', TL.length > 6);
-    tabs.innerHTML = tab ? TL.map(function (t) { var to = t[0] === 'classes' ? 'lessons-' + (S.masjid || 'makkah') : t[0]; return '<a href="#' + to + '" data-go="' + to + '"' + (t[0] === tab ? ' aria-current="page"' : '') + '>' + t[1] + '</a>'; }).join('') : '';
+    tabs.innerHTML = tab ? TL.map(function (t) { var to = t[0] === 'classes' ? 'lessons-' + (S.masjid || 'makkah') : t[0] === 'umrah' ? (R.umrahPart || (doneCount() ? 'perform' : 'prepare')) : t[0]; return '<a href="#' + to + '" data-go="' + to + '"' + (t[0] === tab ? ' aria-current="page"' : '') + '>' + t[1] + '</a>'; }).join('') : '';
   }
   var lock = null;
   function wake() {

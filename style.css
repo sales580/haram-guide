@@ -474,3 +474,10 @@ html, body, button, a, .mapbox { touch-action: manipulation; }
 .hero.nextclass .btn { width: 100%; margin-top: 6px; }
 #tabs.many { width: calc(100% - 12px); padding-inline: 4px; gap: 0; }
 #tabs.many a { font-size: 10.5px; letter-spacing: -.01em; padding: 0 1px; border-radius: 12px; }
+
+/* ---- four tabs: the switch inside Umrah, and Help at the top ---- */
+header.top { position: relative; }
+.helpbtn { position: absolute; right: 14px; top: calc(var(--sat) + 10px + var(--stick)); z-index: 7; min-height: 38px; padding: 0 16px; border-radius: 999px; border: 1.5px solid var(--gold); background: var(--band); color: var(--band-ink); font: inherit; font-weight: 700; font-size: .88rem; }
+.mapbox .helpbtn { right: auto; left: 50%; transform: translateX(-50%); top: 10px; background: var(--card); color: var(--ink); border: 0; box-shadow: 0 2px 8px var(--shade); }
+.mapbox.full .helpbtn { top: calc(var(--sat) + 14px + var(--stick)); }
+.seg3.umrahsw { border-radius: 16px; }
