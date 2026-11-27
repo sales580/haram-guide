@@ -238,7 +238,7 @@ window.UMRAH_CONTENT = {
         { h: "A visit to the House of Allah", p: ["Umrah is a visit to the Ka‘bah in Makkah to worship Allah. It can be done at any time of the year. It often takes two to four hours, and longer when it is crowded."] },
         { h: "Four acts, always in this order", list: ["Ihram: you make the intention at the miqat.", "Tawaf: you walk around the Ka‘bah seven times.", "Sa‘i: you walk between Safa and Marwah seven times.", "Cutting the hair: men shave or shorten, women cut a small amount."] },
         { h: "Its reward", p: ["The Prophet ﷺ said: “One Umrah to the next is an expiation for what is between them.”"], src: "Bukhari 1773, Muslim 1349" },
-        { h: "How to use this guide", p: ["Read the ten stages here at home. On the day, open Perform and follow one stage at a time. If something goes wrong, open Help."] }
+        { h: "How to use this guide", p: ["Read the ten steps here at home. On the day, tap Start my Umrah and follow one step at a time. If something goes wrong, open Help."] }
       ]
     },
     words: {
@@ -324,7 +324,7 @@ window.UMRAH_CONTENT = {
       title: "Phone and money",
       items: [
         { id: "app", t: "Open this guide once before you fly", n: "So it is saved on your phone and works without internet" },
-        { id: "card", t: "Fill in your hotel card", n: "In Prepare, under Hotel card" },
+        { id: "card", t: "Fill in your hotel card", n: "In Get ready, under Hotel" },
         { id: "sim", t: "Phone plan for Saudi Arabia", n: "Roaming, an eSIM or a local SIM" },
         { id: "power", t: "Power bank and charging cable", n: "" },
         { id: "adapter", t: "Plug adapter", n: "Saudi Arabia uses the British three-pin plug (type G)" },
@@ -334,9 +334,9 @@ window.UMRAH_CONTENT = {
     {
       title: "Heart and knowledge",
       items: [
-        { id: "learn", t: "Read the ten stages", n: "In Learn" },
+        { id: "learn", t: "Read the ten steps", n: "In the Umrah tab" },
         { id: "talbiyah", t: "Learn the Talbiyah by heart", n: "" },
-        { id: "dualist", t: "Write your dua list", n: "In Prepare, under Dua list" },
+        { id: "dualist", t: "Write your dua list", n: "In Get ready, under Duas" },
         { id: "forgive", t: "Ask forgiveness from family and friends", n: "" },
         { id: "debts", t: "Settle or write down your debts", n: "" },
         { id: "meet", t: "Agree a meeting point with your group", n: "" }

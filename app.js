@@ -4,7 +4,7 @@
   'use strict';
   var C = window.UMRAH_CONTENT, ENV = window.UMRAH_ENV || {};
   var KEY = 'umrahCompanion.v1';
-  var DEF = { setup: false, gender: '', school: '', route: '', date: '', size: 0, checks: {}, read: {}, done: {}, tawaf: 0, sai: 0, duas: [], card: {}, masjid: '', mapMode: '3d', plan: {}, lang: '', docs: [], hotel: {}, purpose: '' };
+  var DEF = { setup: false, gender: '', school: '', route: '', date: '', size: 0, checks: {}, read: {}, done: {}, live: false, tawaf: 0, sai: 0, duas: [], card: {}, masjid: '', mapMode: '3d', plan: {}, lang: '', docs: [], hotel: {}, purpose: '' };
   function fresh() { return JSON.parse(JSON.stringify(DEF)); }
 
   /* Everything the pilgrim enters stays on this phone (localStorage). Nothing is sent anywhere. */
@@ -18,6 +18,8 @@
       });
     }
   } catch (e) { S = fresh(); }
+  /* someone who had already marked steps as done is in the middle of their Umrah */
+  if (!S.live && Object.keys(S.done).length) S.live = true;
   function save() { try { window.localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 
   var R = { route: 'home', ask: '', lastTap: 0, map: null, layers: { gate: true, lesson: true, wudu: true, help: true }, day: {}, redraw: null };
@@ -27,15 +29,13 @@
   var PLAY = '<svg class="pl" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
   var TABS_UMRAH = [['home', 'Home'], ['umrah', 'Umrah'], ['classes', 'Classes'], ['maps', 'Maps']];
   var TABS_CLASSES = [['home', 'Home'], ['classes', 'Classes'], ['maps', 'Maps']];
-  var UMRAH_PARTS = [['prepare', 'Prepare'], ['learn', 'Learn'], ['perform', 'Perform']];
-  var ROUTE = /^(home|prepare|prep-duas|prep-card|learn|perform|help|card|setup|maps|map-makkah|map-madinah|lessons-makkah|lessons-madinah|floors-makkah|plan|prep-docs|doc-\d+|count-tawaf|count-sai|duas|teacher-makkah-\d+|teacher-madinah-\d+|lesson-[a-z]+|read-\d+|stage-\d+|help-[a-z]+)$/;
+  var ROUTE = /^(home|prepare|prep-duas|prep-card|learn|perform|help|card|setup|maps|map-makkah|map-madinah|lessons-makkah|lessons-madinah|floors-makkah|plan|prep-docs|doc-\d+|count-tawaf|count-sai|duas|teacher-makkah-\d+|teacher-madinah-\d+|lesson-[a-z]+|read-\d+|stage-\d+|details-\d+|where-\d+|umrah|steps|help-[a-z]+)$/;
 
   /* ---------- small helpers ---------- */
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
   function stage(n) { for (var i = 0; i < C.stages.length; i++) if (C.stages[i].id === n) return C.stages[i]; return null; }
   function forMe(x) { return !x.who || !S.gender || x.who === S.gender; }
   function chkItems() { var out = []; C.checklist.forEach(function (g) { g.items.forEach(function (it) { if (forMe(it)) out.push(it); }); }); return out; }
-  function lessonKeys() { return ['intro'].concat(C.stages.map(function (s) { return 's' + s.id; }), ['words', 'women']); }
   function doneCount() { return C.stages.filter(function (s) { return S.done[s.id]; }).length; }
   function nextStage() { for (var i = 0; i < C.stages.length; i++) if (!S.done[C.stages[i].id]) return C.stages[i].id; return 0; }
   function daysLeft() {
@@ -94,9 +94,6 @@
   }
   function legend() {
     return '<div class="legend">' + C.legend.map(function (x) { return '<div><span class="lab ' + x[0] + '">' + esc(C.labels[x[0]]) + '</span><span>' + esc(x[1]) + '</span></div>'; }).join('') + '</div>';
-  }
-  function segs(n) {
-    return '<div class="segs" aria-hidden="true">' + C.stages.map(function (s) { return '<i class="' + (S.done[s.id] ? 'd' : '') + (s.id === n ? ' c' : '') + '"></i>'; }).join('') + '</div>';
   }
   var WHENS = [['any', 'Any time'], ['tawaf', 'During tawaf'], ['rakah', 'After the two rak‘ahs'], ['zamzam', 'When drinking Zamzam'], ['safa', 'On Safa and Marwah'], ['sai', 'During sa‘i'], ['rawdah', 'In the Rawdah'], ['sujud', 'In sujud and after prayers']];
   var STAGE_WHEN = { 5: ['tawaf'], 6: ['rakah'], 7: ['zamzam'], 8: ['safa', 'sai'] };
@@ -257,7 +254,7 @@
 
   /* ---------- home ---------- */
   function tile(to, n, t, s, pct) {
-    var ph = { prepare: 'miqat', learn: 'kaaba', perform: 'blackstone', maps: 'nabawi' }[to] || (to.indexOf('lessons') === 0 ? 'umbrellas' : to === 'duas' ? 'rawdah' : '');
+    var ph = { prepare: 'miqat', umrah: 'kaaba', 'prep-docs': 'babsalam', maps: 'nabawi' }[to] || (to.indexOf('lessons') === 0 ? 'umbrellas' : to === 'duas' ? 'rawdah' : '');
     return '<button class="tile' + (hasPic(ph) ? ' pic' : '') + '" data-go="' + to + '">' + pic(ph, 'tpic', '') + '<span class="tn">' + n + '</span><b>' + t + '</b><small>' + esc(s) + '</small>' +
       (pct == null ? '' : '<span class="tbar"><i style="width:' + Math.round(100 * pct) + '%"></i></span>') + '</button>';
   }
@@ -336,30 +333,30 @@
   function vHome() {
     if (forClasses()) return vHomeClasses();
     var items = chkItems(), cd = items.filter(function (i) { return S.checks[i.id]; }).length;
-    var ls = lessonKeys(), rd = ls.filter(function (k) { return S.read[k]; }).length;
-    var dn = doneCount(), nx = nextStage(), d = daysLeft(), ready = (cd + rd) / Math.max(1, items.length + ls.length);
+    var seen = C.stages.filter(function (x) { return S.read['s' + x.id]; }).length;
+    var dn = doneCount(), nx = nextStage(), d = daysLeft(), ready = (cd + seen) / Math.max(1, items.length + TOTAL);
     var kick = 'Your journey', big, small, btn = 'Continue', to = '', pct = ready, rb = Math.round(ready * 100) + '%', rs = 'ready';
-    if (dn && nx) { kick = 'You are here'; big = 'Stage ' + nx + ': ' + stage(nx).title; small = 'Carry on from where you stopped.'; to = 'stage-' + nx; pct = dn / TOTAL; rb = dn + '/' + TOTAL; rs = 'stages'; }
-    else if (dn) { kick = 'Alhamdulillah'; big = 'Umrah complete'; small = 'May Allah accept it from you.'; pct = 1; rb = TOTAL + '/' + TOTAL; rs = 'stages'; }
+    if ((dn || S.live) && nx) { kick = 'You are here'; big = 'Step ' + nx + ': ' + stage(nx).title; small = 'Carry on from where you stopped.'; to = 'stage-' + nx; pct = dn / TOTAL; rb = dn + '/' + TOTAL; rs = 'steps'; }
+    else if (dn) { kick = 'Alhamdulillah'; big = 'Umrah complete'; small = 'May Allah accept it from you.'; pct = 1; rb = TOTAL + '/' + TOTAL; rs = 'steps'; }
     else {
       big = d === 0 ? 'Your Umrah is today' : d === 1 ? 'Your Umrah is tomorrow' : 'Prepare for your Umrah';
       if (d != null && d > 1) { rb = String(d); rs = 'days to go'; }
-      if (d != null && d <= 0) { small = 'When you set out, begin with stage 1.'; btn = 'Begin my Umrah'; to = 'stage-1'; }
+      if (d != null && d <= 0) { small = 'When you set out, start at step 1.'; btn = 'Open the steps'; to = 'umrah'; }
       else if (cd < items.length) { small = 'Next: your checklist, ' + cd + ' of ' + items.length + ' done.'; to = 'prepare'; }
-      else if (rd < ls.length) { small = 'Next: learn the steps, ' + rd + ' of ' + ls.length + ' read.'; to = 'learn'; }
-      else { small = 'You are ready. Begin when you set out.'; btn = 'Begin my Umrah'; to = 'stage-1'; }
+      else if (seen < TOTAL) { small = 'Next: read the steps, ' + seen + ' of ' + TOTAL + ' read.'; to = 'umrah'; }
+      else { small = 'You are ready. Start when you set out.'; btn = 'Open the steps'; to = 'umrah'; }
     }
     var h = '<header class="top home"><p>Assalamu alaykum</p><h1>Haramain Path</h1><p class="tagl">Umrah guide, maps and today’s classes</p></header><section class="pad homepad">';
     h += '<div class="hero">' + ring(pct, rb, rs) + '<div class="ht"><p class="hk">' + kick + '</p><p class="hb">' + esc(big) + '</p><p class="hs">' + esc(small) + '</p></div>' +
       (to ? '<button class="btn gold" data-go="' + to + '">' + btn + '</button>' : '') +
       (!S.date && !dn ? '<button class="lnk" data-go="setup">Add the date of your Umrah</button>' : '') + '</div>';
-    if (dn && !nx) h += ask('restart', 'Start another Umrah', 'Clear your progress and both counters?', 'Yes, start again');
+    if (S.live && !nx) h += ask('restart', 'Start another Umrah', 'Clear your progress and both counters?', 'Yes, start again');
     if (S.purpose === 'both') h += todayCard();
-    h += '<div class="tiles">' + tile('prepare', '01', 'Prepare', cd + ' of ' + items.length + ' done', cd / Math.max(1, items.length)) +
-      tile('learn', '02', 'Learn', rd + ' of ' + ls.length + ' read', rd / ls.length) +
-      tile('perform', '03', 'Perform', !nx ? 'Complete' : dn ? 'Stage ' + nx + ' of ' + TOTAL : TOTAL + ' stages', dn / TOTAL) +
-      tile('duas', '04', 'My duas', S.duas.length ? S.duas.filter(function (x) { return !x.done; }).length + ' still to make' : 'Write them here') + tile('maps', '05', 'Maps', 'Both masajid in 3D') + tile('lessons-' + (S.masjid || 'makkah'), '06', 'Classes', lessonCount()) + '</div>';
-    h += '<button class="rowb solo" data-go="prep-docs"><span class="ct"><b>My documents</b><small>' + (S.docs.length ? S.docs.length + ' saved, ready to show' : 'Visa links, and your papers ready to show') + '</small></span><span class="chev">›</span></button>';
+    h += '<div class="tiles">' + tile('umrah', '01', 'Umrah steps', !nx ? 'Complete' : S.live ? 'Step ' + nx + ' of ' + TOTAL : seen + ' of ' + TOTAL + ' read', (S.live ? dn : seen) / TOTAL) +
+      tile('prepare', '02', 'Get ready', cd + ' of ' + items.length + ' ticked', cd / Math.max(1, items.length)) +
+      tile('maps', '03', 'Maps', 'Both masajid in 3D') + tile('lessons-' + (S.masjid || 'makkah'), '04', 'Classes', lessonCount()) +
+      tile('duas', '05', 'My duas', S.duas.length ? S.duas.filter(function (x) { return !x.done; }).length + ' still to make' : 'Write them here') +
+      tile('prep-docs', '06', 'Documents', S.docs.length ? S.docs.length + ' saved' : 'Visa links and papers') + '</div>';
     h += '<button class="rowb solo" data-go="help"><span class="ct"><b>Help</b><small>What to do when something goes wrong</small></span><span class="chev">›</span></button>';
     if (S.purpose !== 'both') h += todayCard();
     h += '<div class="me"><div class="line"><p>' + esc(details()) + '</p><button class="btn ghost small" data-go="setup">Change</button></div>' +
@@ -525,7 +522,7 @@
   }
   function vPrepare(r) {
     var t = [['prepare', 'Checklist'], ['prep-duas', 'Duas'], ['prep-card', 'Hotel'], ['prep-docs', 'Documents']];
-    var h = top('Prepare', '', 'Before you travel') + '<section class="pad"><div class="seg3 four" role="tablist">' + t.map(function (x) {
+    var h = top('Get ready', 'umrah', 'Before you travel') + '<section class="pad"><div class="seg3 four" role="tablist">' + t.map(function (x) {
       return '<button role="tab" aria-selected="' + (x[0] === r) + '" data-go="' + x[0] + '">' + x[1] + '</button>';
     }).join('') + '</div>';
     return h + (r === 'prepare' ? askThree() : '') + (r === 'prep-duas' ? duaList() : r === 'prep-card' ? cardForm() : r === 'prep-docs' ? docsView() : checklist()) + '</section>';
@@ -543,67 +540,104 @@
     return h + '</div><button class="btn ghost" data-go="prep-card">Edit my card</button></section>';
   }
 
-  /* ---------- learn ---------- */
-  function vLearn() {
-    var ks = lessonKeys(), rd = ks.filter(function (k) { return S.read[k]; }).length;
-    var rows = [['lesson-intro', 'intro', C.lessons.intro.title, 'Start here']];
-    C.stages.forEach(function (s) { rows.push(['read-' + s.id, 's' + s.id, s.title, s.where]); });
-    rows.push(['lesson-words', 'words', C.lessons.words.title, 'The Arabic terms you will hear']);
-    rows.push(['lesson-women', 'women', C.lessons.women.title, 'Clothing, pace, your period, hair']);
-    var h = top('Learn', '', 'Read it at home, before you go') + '<section class="pad"><p class="prog">' + rd + ' of ' + ks.length + ' read</p>' +
-      '<div class="bar"><i style="width:' + Math.round(100 * rd / ks.length) + '%"></i></div><div class="rows">';
-    rows.forEach(function (r, i) {
-      h += '<button class="rowb' + (S.read[r[1]] ? ' done' : '') + '" data-go="' + r[0] + '"><span class="num">' + (S.read[r[1]] ? CHECK : (i + 1)) + '</span>' +
-        '<span class="ct"><b>' + esc(r[2]) + '</b><small>' + esc(r[3]) + '</small></span><span class="chev">›</span></button>';
-    });
+  /* ---------- the Umrah steps, told as a photo story: one step on each screen ---------- */
+  /* Three short lines for each step. They are the step's own headings in content.js; 'm' and 'f' mark a line for men or women only. */
+  var STORY = {
+    1: ['Tidy up and bathe', ['m', 'Wear the two ihram cloths'], ['f', 'Wear your normal modest clothes'], 'Pray first'],
+    2: ['Know your miqat', 'Make your intention', 'Say the Talbiyah'],
+    3: ['Do not cut your hair or nails', 'No perfume or scented products', ['m', 'No head covering or fitted clothes'], ['f', 'No face veil or gloves']],
+    4: ['Have wudu', 'Agree a meeting point', 'Enter with your right foot'],
+    5: ['Start level with the Black Stone', 'Keep the Ka‘bah on your left', 'Walk seven rounds'],
+    6: [['m', 'Cover both shoulders'], 'Walk towards Maqam Ibrahim', 'Pray two rak‘ahs', ['f', 'Do not block the way']],
+    7: ['Drink Zamzam water', 'Make dua', 'Rest if you need to'],
+    8: ['Begin on Safa', 'Walk to Marwah: that is lap one', 'Seven laps, ending at Marwah'],
+    9: [['m', 'Shave your whole head, which is better'], ['m', 'Or shorten evenly from all over'], ['f', 'Gather your hair'], ['f', 'Cut about a fingertip’s length'], ['f', 'Women do not shave']],
+    10: ['Your ihram has ended', 'Thank Allah and ask Him to accept it', 'Stay close to the Masjid']
+  };
+  /* which part of each photograph to keep when it is cropped to a tall frame */
+  var STORY_POS = { ihram: '50% 50%', miqat: '50% 50%', tanim: '50% 50%', gate: '50% 40%', kaaba: '33% 60%', maqam: '50% 50%', zamzam: '50% 55%', safa: '50% 50%' };
+  function storyLines(n) {
+    return (STORY[n] || []).filter(function (x) { return typeof x === 'string' || x[0] === S.gender; }).map(function (x) { return typeof x === 'string' ? x : x[1]; });
+  }
+  function stagePic(n) {
+    if (n === 2 && S.route === 'makkah') return 'tanim';
+    if (n === 1 && S.gender === 'f') return '';
+    return n === TOTAL ? 'kaaba' : (STAGE_PIC[n] || '');
+  }
+  function stepNow() { return R.look || (S.live ? nextStage() || TOTAL : 1); }
+  function waiting(keys) { return S.duas.filter(function (d) { return !d.done && keys && keys.indexOf(d.w || 'any') >= 0; }).length; }
+  function vStory(n) {
+    var st = stage(n); if (!st) return vSteps();
+    R.look = n;
+    var ph = stagePic(n), lines = storyLines(n), mine = waiting(STAGE_WHEN[n]);
+    var h = '<section class="story' + (hasPic(ph) ? '' : ' nophoto') + '">';
+    h += '<div class="sphoto">' + (hasPic(ph) ? '<img src="p-' + ph + '.jpg" alt="' + esc(MEDIA.photos[ph].what || st.title) + '" style="object-position:' + (STORY_POS[ph] || '50% 50%') + (ph === 'kaaba' ? ';transform:translateY(-9%)' : '') + '">' : '<b aria-hidden="true">' + n + '</b>') + '</div>';
+    h += '<div class="sdots">' + C.stages.map(function (x) { return '<button class="' + ((S.live ? S.done[x.id] : x.id < n) ? 'd' : '') + (x.id === n ? ' c' : '') + '" data-go="stage-' + x.id + '" aria-label="Step ' + x.id + ': ' + esc(x.title) + '"' + (x.id === n ? ' aria-current="step"' : '') + '></button>'; }).join('') + '</div>';
+    h += '<div class="stop"><button class="pill" data-go="steps">All steps</button><button class="pill" data-go="prepare">Get ready</button><button class="pill" data-go="help">Help</button></div>';
+    h += '<div class="stxt"><div class="skick"><p>Step ' + n + ' of ' + TOTAL + (S.live && S.done[n] ? ' · done' : '') + '</p>' + (n > 1 ? '<button data-go="stage-' + (n - 1) + '">‹ Step ' + (n - 1) + '</button>' : '') + '</div>';
+    h += '<h1>' + esc(st.title) + '</h1><p class="swhere">' + esc(st.where) + '</p>';
+    h += '<ol class="sdo">' + lines.map(function (x, i) { return '<li><b>' + (i + 1) + '</b><span>' + esc(x) + '</span></li>'; }).join('') + '</ol>';
+    if (!(S.gender && S.school && S.route)) h += '<button class="smine" data-act="purpose-both">Answer three questions so the steps fit you ›</button>';
+    else if (mine) h += '<button class="smine" data-go="details-' + n + '">My duas for this moment: ' + mine + ' ›</button>';
+    var more = '<button class="sbtn" data-go="details-' + n + '">' + (st.steps.some(function (x) { return x.dua && visible(x); }) ? 'Duas and details' : 'All the details') + '</button>';
+    var next = '<button class="sbtn" data-act="stage-done" data-n="' + n + '">' + (n < TOTAL ? 'Next step ›' : 'Finish') + '</button>';
+    var where = st.img ? '<button class="sbtn" data-go="where-' + n + '">Show me where</button>' : '';
+    if (st.counter) {
+      var c = S[st.counter], taw = st.counter === 'tawaf';
+      var lab = c >= 7 ? 'Open the counter' : c ? (taw ? 'Round ' : 'Lap ') + (c + 1) + ' of 7: count' : taw ? 'Count my rounds' : 'Count my laps';
+      h += '<div class="sbtns"><button class="sbtn gold" data-go="count-' + st.counter + '">' + lab + '</button>' + where + more + next + '</div>';
+    } else h += '<div class="sbtns">' + where + (where ? more : more.replace('class="sbtn"', 'class="sbtn full"')) + next.replace('class="sbtn"', 'class="sbtn gold' + (where ? '' : ' full') + '"') + '</div>';
+    if (!S.live) h += '<button class="slive" data-act="live">You are reading ahead. <u>Start my Umrah</u> to keep your place.</button>';
     return h + '</div></section>';
   }
+  function vWhere(n) {
+    var st = stage(n); if (!st || !st.img) return vStory(n);
+    var ph = stagePic(n);
+    var h = top('Where to go', 'stage-' + n, 'Step ' + n + ' · ' + st.title) + '<section class="pad">';
+    h += '<figure class="fig">' + PLAN[st.img]() + '<figcaption>' + esc(st.cap) + '</figcaption></figure>';
+    if (hasPic(ph)) h += '<figure class="shot">' + pic(ph, '', st.title) + '<figcaption>What to look for</figcaption></figure>';
+    return h + '<button class="btn" data-go="map-makkah">Open the live map</button></section>';
+  }
+  function vDetails(n) {
+    var st = stage(n); if (!st) return vSteps();
+    CUR_PIC = stagePic(n);
+    var h = top(st.title, 'stage-' + n, 'Step ' + n + ' of ' + TOTAL + ' · Duas and details') + '<section class="pad">' +
+      '<p class="where">' + esc(st.where) + '</p><p class="lead">' + esc(st.summary) + '</p>' + askThree();
+    if (STAGE_WHEN[n]) h += myDuas(STAGE_WHEN[n]);
+    h += st.steps.filter(visible).map(stepHTML).join('') + legend();
+    return h + '<button class="btn" data-go="stage-' + n + '">Back to step ' + n + '</button></section>';
+  }
+  function vSteps() {
+    var dn = doneCount(), nx = nextStage();
+    var h = top('All steps', 'umrah', 'Your whole Umrah') + '<section class="pad">' + askThree();
+    h += '<button class="rowb solo" data-go="prepare"><span class="ct"><b>Get ready</b><small>Checklist, my duas, hotel and documents</small></span><span class="chev">›</span></button>';
+    if (!S.live) h += '<button class="btn" data-act="live">Start my Umrah</button><p class="hint">Until then you can read every step as often as you like, and nothing is marked as done.</p>';
+    else if (!nx) h += '<div class="card"><h3>Umrah complete</h3><p>May Allah accept it from you.</p></div>';
+    else h += '<button class="btn" data-go="stage-' + nx + '">Continue with step ' + nx + '</button>';
+    h += '<div class="rows">' + C.stages.map(function (s) {
+      var sp = stagePic(s.id), done = S.live && S.done[s.id];
+      return '<button class="rowb' + (done ? ' done' : S.live && s.id === nx ? ' cur' : '') + ' haspic" data-go="stage-' + s.id + '">' + (hasPic(sp) ? pic(sp, 'rowpic', '') : '<span class="rowpic none"></span>') + '<span class="num">' + (done ? CHECK : s.id) + '</span>' +
+        '<span class="ct"><b>' + esc(s.title) + '</b><small>' + esc(s.where) + '</small></span><span class="chev">›</span></button>';
+    }).join('') + '</div>';
+    h += '<figure class="fig"><p class="hk">Your Umrah on the map</p>' + PLAN.journey() + '<figcaption>The numbers are the steps above. Steps 1 to 3 happen before you reach the Masjid, and Zamzam taps (step 7) stand along the edges of the mataf.</figcaption></figure>';
+    h += '<h2 class="gh">Also worth reading</h2><div class="rows">' + [['intro', 'Start here'], ['words', 'The Arabic terms you will hear'], ['women', 'Clothing, pace, your period, hair']].map(function (x) {
+      return '<button class="rowb" data-go="lesson-' + x[0] + '"><span class="ct"><b>' + esc(C.lessons[x[0]].title) + '</b><small>' + x[1] + '</small></span><span class="chev">›</span></button>';
+    }).join('') + '</div>';
+    if (S.live || dn || S.tawaf || S.sai) h += ask('restart', 'Start again from step 1', 'Clear your progress and both counters?', 'Yes, start again');
+    return h + '</section>';
+  }
+
+  /* ---------- the other lessons ---------- */
   function vLesson(id) {
-    var L = C.lessons[id]; if (!L) return vLearn();
-    var h = top(L.title, 'learn', 'Lesson') + '<section class="pad">';
+    var L = C.lessons[id]; if (!L) return vSteps();
+    var h = top(L.title, 'steps', 'Lesson') + '<section class="pad">';
     L.blocks.forEach(function (b) {
       h += '<article class="step"><h3>' + esc(b.h) + '</h3>' + (b.p || []).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') +
         (b.list ? '<ol class="ol">' + b.list.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ol>' : '') +
         (b.src ? '<p class="src">Source: ' + esc(b.src) + '</p>' : '') + '</article>';
     });
     if (id === 'words') h += '<div class="card"><dl class="gl">' + C.glossary.map(function (g) { return '<dt>' + esc(g[0]) + '</dt><dd>' + esc(g[1]) + '</dd>'; }).join('') + '</dl></div>';
-    return h + '<button class="btn" data-act="read" data-id="' + id + '">' + (S.read[id] ? 'Back to lessons' : 'Mark as read') + '</button></section>';
-  }
-
-  /* ---------- perform ---------- */
-  function vPerform() {
-    var dn = doneCount(), nx = nextStage();
-    var h = top('Perform', '', 'One stage at a time') + '<section class="pad">' + askThree();
-    if (!nx) h += '<div class="card"><h3>Umrah complete</h3><p>May Allah accept it from you.</p></div>';
-    else h += '<button class="btn" data-go="stage-' + nx + '">' + (dn ? 'Continue with stage ' + nx : 'Begin with stage 1') + '</button>';
-    h += '<figure class="fig"><p class="hk">Your Umrah on the map</p>' + PLAN.journey() + '<figcaption>The numbers are the stages below. Stages 1 to 3 happen before you reach the Masjid, and Zamzam taps (stage 7) stand along the edges of the mataf.</figcaption></figure>';
-    h += '<div class="rows">' + C.stages.map(function (s) {
-      var sp = s.id === 2 && S.route === 'makkah' ? 'tanim' : STAGE_PIC[s.id];
-      return '<button class="rowb' + (S.done[s.id] ? ' done' : s.id === nx ? ' cur' : '') + ' haspic" data-go="stage-' + s.id + '">' + (hasPic(sp) ? pic(sp, 'rowpic', '') : '<span class="rowpic none"></span>') + '<span class="num">' + (S.done[s.id] ? CHECK : s.id) + '</span>' +
-        '<span class="ct"><b>' + esc(s.title) + '</b><small>' + esc(s.where) + '</small></span><span class="chev">›</span></button>';
-    }).join('') + '</div>';
-    if (dn || S.tawaf || S.sai) h += ask('restart', 'Start again from stage 1', 'Clear your progress and both counters?', 'Yes, start again');
-    return h + '</section>';
-  }
-  function counterEntry(kind) {
-    var taw = kind === 'tawaf', n = S[kind];
-    var t = n >= 7 ? (taw ? 'Seven rounds done' : 'Seven laps done') : n ? (taw ? 'Round ' : 'Lap ') + (n + 1) + ' of 7' : (taw ? 'Count your seven rounds' : 'Count your seven laps');
-    return '<div class="card cta"><p class="ctt">' + t + '</p><button class="btn" data-go="count-' + kind + '">' + (n ? 'Open the counter' : 'Start the counter') + '</button></div>';
-  }
-  function vStage(n, read) {
-    var st = stage(n); if (!st) return read ? vLearn() : vPerform();
-    var h = top(st.title, read ? 'learn' : 'perform', 'Stage ' + n + ' of ' + TOTAL + (read ? ' · Lesson' : '')) + '<section class="pad">' + segs(n) +
-      '<p class="where">' + esc(st.where) + '</p><p class="lead">' + esc(st.summary) + '</p>';
-    CUR_PIC = n === 2 && S.route === 'makkah' ? 'tanim' : (STAGE_PIC[n] || '');
-    if (hasPic(CUR_PIC)) h += '<figure class="shot">' + pic(CUR_PIC, '', st.title) + '<figcaption>What to look for</figcaption></figure>';
-    if (st.counter && !read) h += counterEntry(st.counter);
-    if (!read && STAGE_WHEN[n]) h += myDuas(STAGE_WHEN[n]);
-    if (st.img) h += '<figure class="fig"><p class="hk">Where to go</p>' + PLAN[st.img]() + '<figcaption>' + esc(st.cap) + '</figcaption><button class="btn ghost small" data-go="map-makkah">Open the full map</button></figure>';
-    h += st.steps.filter(visible).map(stepHTML).join('') + legend();
-    if (read) h += '<button class="btn" data-act="read" data-id="s' + n + '">' + (S.read['s' + n] ? 'Back to lessons' : 'Mark as read') + '</button>';
-    else h += '<div class="two">' + (n > 1 ? '<button class="btn ghost" data-go="stage-' + (n - 1) + '">Back</button>' : '') +
-      '<button class="btn" data-act="stage-done" data-n="' + n + '">' + (n < TOTAL ? 'Done. Next stage' : 'Finish') + '</button></div>';
-    return h + '</section>';
+    return h + '<button class="btn" data-act="read" data-id="' + id + '">Back to all steps</button></section>';
   }
 
   /* ---------- the counters ---------- */
@@ -620,7 +654,7 @@
     var taw = kind === 'tawaf', n = S[kind], done = n >= 7, cur = Math.min(n + 1, 7), toMarwah = cur % 2 === 1, man = S.gender === 'm';
     var st = null; C.stages.forEach(function (s) { if (s.counter === kind) st = s; });
     var what = taw ? 'when you pass the Black Stone' : toMarwah ? 'when you reach Marwah' : 'when you reach Safa';
-    var h = top(taw ? 'Tawaf counter' : 'Sa‘i counter', 'stage-' + st.id, 'Stage ' + st.id + ' of ' + TOTAL) + '<section class="pad count">';
+    var h = top(taw ? 'Tawaf counter' : 'Sa‘i counter', 'stage-' + st.id, 'Step ' + st.id + ' of ' + TOTAL) + '<section class="pad count">';
     if (!done) {
       h += '<button class="ringtap tap" data-act="count" data-k="' + kind + '" aria-label="' + (taw ? 'Round ' : 'Lap ') + cur + ' of 7. Tap ' + what + '.">' + arcs(n, false) +
         '<span class="rin"><small>' + (taw ? 'Round' : 'Lap') + '</small><b>' + cur + '</b><small>of 7</small></span></button>';
@@ -1393,9 +1427,6 @@
 
   /* ---------- drawing, moving between screens ---------- */
   function addChrome(r) {
-    var part = r === 'prepare' || r.indexOf('prep-') === 0 ? 'prepare' : r === 'learn' ? 'learn' : r === 'perform' ? 'perform' : '';
-    var sec = view.querySelector('section.pad');
-    if (part && sec) sec.insertAdjacentHTML('afterbegin', '<div class="seg3 pick umrahsw">' + UMRAH_PARTS.map(function (x) { return '<button aria-pressed="' + (x[0] === part) + '" data-go="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>');
     if (r === 'setup' || r === 'help' || r.indexOf('help-') === 0) return;
     var where = view.querySelector('header.top') || view.querySelector('.mapbox');
     if (where) where.insertAdjacentHTML('beforeend', '<button class="helpbtn" data-go="help">Help</button>');
@@ -1403,15 +1434,18 @@
   function render() {
     document.documentElement.setAttribute('data-size', String(S.size || 0));
     var r = S.setup ? R.route : 'setup', tab = 'home', h;
+    if (r === 'umrah') r = 'stage-' + stepNow();
+    else if (r === 'learn' || r === 'perform') r = 'steps';
+    else if (r.indexOf('read-') === 0) r = 'stage-' + r.slice(5);
     if (r === 'setup') { h = vSetup(); tab = S.setup ? 'home' : ''; }
     else if (r.indexOf('doc-') === 0) { h = vDoc(+r.slice(4)); tab = 'prepare'; }
     else if (r === 'prepare' || r === 'prep-duas' || r === 'prep-card' || r === 'prep-docs') { h = vPrepare(r); tab = 'prepare'; }
-    else if (r === 'learn') { h = vLearn(); tab = 'learn'; }
-    else if (r.indexOf('lesson-') === 0) { h = vLesson(r.slice(7)); tab = 'learn'; }
-    else if (r.indexOf('read-') === 0) { h = vStage(+r.slice(5), true); tab = 'learn'; }
-    else if (r === 'perform') { h = vPerform(); tab = 'perform'; }
-    else if (r.indexOf('stage-') === 0) { h = vStage(+r.slice(6), false); tab = 'perform'; }
-    else if (r === 'count-tawaf' || r === 'count-sai') { h = vCount(r.slice(6)); tab = 'perform'; }
+    else if (r === 'steps') { h = vSteps(); tab = 'umrah'; }
+    else if (r.indexOf('lesson-') === 0) { h = vLesson(r.slice(7)); tab = 'umrah'; }
+    else if (r.indexOf('stage-') === 0) { h = vStory(+r.slice(6)); tab = 'umrah'; }
+    else if (r.indexOf('where-') === 0) { h = vWhere(+r.slice(6)); tab = 'umrah'; }
+    else if (r.indexOf('details-') === 0) { h = vDetails(+r.slice(8)); tab = 'umrah'; if (!S.read['s' + r.slice(8)]) { S.read['s' + r.slice(8)] = true; save(); } }
+    else if (r === 'count-tawaf' || r === 'count-sai') { h = vCount(r.slice(6)); tab = 'umrah'; }
     else if (r === 'maps' || r.indexOf('map-') === 0) { h = vMap(r === 'maps' ? (S.masjid || 'makkah') : r.slice(4)); tab = 'maps'; }
     else if (r.indexOf('lessons-') === 0) { h = vLessons(r.slice(8)); tab = 'maps'; }
     else if (r === 'duas') { h = vDuas(); tab = 'home'; }
@@ -1425,6 +1459,7 @@
     if (r.indexOf('map-') !== 0 && R.mapFull) { R.mapFull = false; }
     document.documentElement.classList.toggle('mapfull', !!R.mapFull);
     if (r === 'home' && !R.popDone) { R.popDone = true; try { R.pop = upcoming(); } catch (e) { R.pop = null; } }
+    document.documentElement.classList.toggle('storyon', r.indexOf('stage-') === 0);
     view.innerHTML = h + (R.pop && (r === 'home' || r.indexOf('lessons-') === 0) ? popup() : '');
     addChrome(r);
     if (document.querySelector('img[data-doc]')) docPaint();
@@ -1435,11 +1470,11 @@
     if (window.UMRAH_3D && !document.getElementById('map3d')) window.UMRAH_3D.hide();
     tabs.hidden = !tab;
     if (r.indexOf('lessons-') === 0 || r === 'plan' || r.indexOf('teacher-') === 0) tab = 'classes';
-    /* Prepare, Learn and Perform live together under one Umrah tab; Help is a button at the top */
-    if (tab === 'prepare' || tab === 'learn' || tab === 'perform') { R.umrahPart = tab; tab = 'umrah'; }
+    /* the steps and Get ready live together under the Umrah tab; Help is a button at the top */
+    if (tab === 'prepare') tab = 'umrah';
     if (tab === 'help') tab = 'none';
     var TL = forClasses() ? TABS_CLASSES : TABS_UMRAH;
-    tabs.innerHTML = tab ? TL.map(function (t) { var to = t[0] === 'classes' ? 'lessons-' + (S.masjid || 'makkah') : t[0] === 'umrah' ? (R.umrahPart || (doneCount() ? 'perform' : 'prepare')) : t[0]; return '<a href="#' + to + '" data-go="' + to + '"' + (t[0] === tab ? ' aria-current="page"' : '') + '>' + t[1] + '</a>'; }).join('') : '';
+    tabs.innerHTML = tab ? TL.map(function (t) { var to = t[0] === 'classes' ? 'lessons-' + (S.masjid || 'makkah') : t[0]; return '<a href="#' + to + '" data-go="' + to + '"' + (t[0] === tab ? ' aria-current="page"' : '') + '>' + t[1] + '</a>'; }).join('') : '';
   }
   var lock = null;
   function wake() {
@@ -1478,8 +1513,9 @@
     }
     else if (a === 'dua-tick') { if (S.duas[i]) { S.duas[i].done = !S.duas[i].done; save(); render(); } }
     else if (a === 'dua-del') { S.duas.splice(i, 1); save(); render(); }
-    else if (a === 'read') { S.read[t.getAttribute('data-id')] = true; save(); go('learn'); }
-    else if (a === 'stage-done') { var n = +t.getAttribute('data-n'); S.done[n] = true; save(); go(n < TOTAL ? 'stage-' + (n + 1) : 'home'); }
+    else if (a === 'read') { S.read[t.getAttribute('data-id')] = true; save(); go('steps'); }
+    else if (a === 'stage-done') { var n = +t.getAttribute('data-n'); S.read['s' + n] = true; if (S.live) S.done[n] = true; save(); go(n < TOTAL ? 'stage-' + (n + 1) : S.live ? 'home' : 'steps'); }
+    else if (a === 'live') { S.live = true; save(); R.look = nextStage() || 1; go('stage-' + R.look); toast('Your Umrah has started. Next step now marks each one done.'); }
     else if (a === 'count') {
       var now = Date.now();
       if (now - R.lastTap < 1200) { toast('Counted. One tap for each ' + (k === 'tawaf' ? 'round' : 'lap') + '.'); return; }
@@ -1489,12 +1525,12 @@
     }
     else if (a === 'undo') { if (S[k] > 0) { S[k]--; save(); } R.lastTap = 0; render(); }
     else if (a === 'count-next') {
-      C.stages.forEach(function (s) { if (s.counter === k) { S.done[s.id] = true; save(); go('stage-' + (s.id + 1)); } });
+      C.stages.forEach(function (s) { if (s.counter === k) { if (S.live) S.done[s.id] = true; save(); go('stage-' + (s.id + 1)); } });
     }
     else if (a === 'ask') { R.ask = k || ''; render(); }
     else if (a === 'yes') {
       R.ask = '';
-      if (k === 'restart') { S.done = {}; S.tawaf = 0; S.sai = 0; save(); go('perform'); }
+      if (k === 'restart') { S.done = {}; S.live = false; S.tawaf = 0; S.sai = 0; R.look = 0; save(); go('stage-1'); }
       else if (k === 'reset-tawaf') { S.tawaf = 0; save(); render(); }
       else if (k === 'reset-sai') { S.sai = 0; save(); render(); }
       else if (k === 'erase') { try { window.localStorage.removeItem(KEY); } catch (e) {} idb('readwrite', function (st) { return st.clear(); }).catch(function () {}); S = fresh(); go('setup'); }

@@ -481,3 +481,38 @@ header.top { position: relative; }
 .mapbox .helpbtn { right: auto; left: 50%; transform: translateX(-50%); top: 10px; background: var(--card); color: var(--ink); border: 0; box-shadow: 0 2px 8px var(--shade); }
 .mapbox.full .helpbtn { top: calc(var(--sat) + 14px + var(--stick)); }
 .seg3.umrahsw { border-radius: 16px; }
+
+/* ---- the Umrah photo story: one step, one large photograph, three short lines ---- */
+html.storyon #app { padding-bottom: 0; background: #061610; }
+.story { position: relative; display: flex; flex-direction: column; justify-content: flex-end; min-height: 100vh; min-height: 100dvh; background: #061610; color: #F8F4EA; overflow: hidden; }
+.sphoto { position: absolute; left: 0; right: 0; top: 0; height: 58vh; height: 58dvh; }
+.sphoto img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.sphoto::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(3, 14, 10, .72) 0, rgba(3, 14, 10, .16) 24%, rgba(6, 22, 16, 0) 42%, rgba(6, 22, 16, .86) 70%, #061610 90%); }
+.story.nophoto .sphoto { background: #0E3A2B var(--lattice); background-size: 64px 64px; }
+.sphoto > b { position: absolute; left: 0; right: 0; top: 22%; text-align: center; font-family: var(--display); font-weight: 400; font-size: 120px; line-height: 1; color: #D9B65A; }
+.sdots { position: absolute; z-index: 2; left: 16px; right: 16px; top: calc(var(--sat) + 4px + var(--stick)); display: flex; gap: 4px; }
+.sdots button { flex: 1; min-width: 0; height: 28px; padding: 0; border: 0; background: none; position: relative; }
+.sdots button::before { content: ""; position: absolute; left: 0; right: 0; top: 12px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .4); }
+.sdots button.d::before { background: #D9B65A; }
+.sdots button.c::before { background: #FFF; top: 11px; height: 7px; }
+.stop { position: absolute; z-index: 2; left: 16px; right: 16px; top: calc(var(--sat) + 36px + var(--stick)); display: flex; justify-content: space-between; gap: 8px; }
+.pill { min-height: 40px; padding: 0 15px; border: 1.5px solid #D9B65A; border-radius: 999px; background: rgba(6, 22, 16, .62); color: #FFF; font-weight: 700; font-size: min(.82rem, 16px); }
+.stxt { position: relative; z-index: 1; padding: calc(var(--sat) + var(--stick) + 150px) max(18px, env(safe-area-inset-right, 0px)) calc(88px + var(--sab)) max(18px, env(safe-area-inset-left, 0px)); }
+.skick { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; }
+.skick p { font-size: .72rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #E5C672; }
+.skick button { min-height: 36px; padding: 0 0 0 12px; border: 0; background: none; color: #C7D8CE; font-weight: 600; font-size: .85rem; }
+.story h1 { font-family: var(--display); font-weight: 400; font-size: 2.45rem; line-height: 1.08; text-wrap: balance; text-shadow: 0 2px 12px rgba(0, 0, 0, .45); }
+.swhere { margin: 3px 0 8px; font-size: .86rem; color: #B9CDC1; }
+.sdo { list-style: none; margin: 0; padding: 0; }
+.sdo li { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid rgba(255, 255, 255, .2); font-size: 1rem; font-weight: 500; line-height: 1.35; }
+.sdo b { flex: none; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #D9B65A; color: #14251D; font-size: .8rem; }
+.smine { display: block; width: 100%; margin-top: 6px; padding: 10px 14px; border: 0; border-radius: 13px; background: rgba(217, 182, 90, .16); color: #F0D88F; font-weight: 600; font-size: .86rem; text-align: left; }
+.sbtns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.sbtn { min-height: 52px; padding: 8px 10px; border: 1.5px solid rgba(255, 255, 255, .55); border-radius: 15px; background: transparent; color: #FFF; font-weight: 700; font-size: .92rem; line-height: 1.2; }
+.sbtn.gold { border-color: #D9B65A; background: #D9B65A; color: #14251D; }
+.sbtn.full { grid-column: 1 / -1; }
+.sbtns > .sbtn:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.slive { display: block; width: 100%; min-height: 40px; margin-top: 6px; padding: 6px 0; border: 0; background: none; color: #B9CDC1; font-size: .8rem; text-align: center; }
+.slive u { color: #F0D88F; font-weight: 700; }
+.skick p, .skick button { text-shadow: 0 1px 6px rgba(0, 0, 0, .85); }
+.top.home .tagl { order: 0; }
